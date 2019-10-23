@@ -1,5 +1,8 @@
 # Ignore credentials for Gmail API
 credentials.json
 
-# Ignore token.pickl
+# Ignore token.pick
 token.pickle
+
+# Ignore SQLite database
+jvm-loss.db
