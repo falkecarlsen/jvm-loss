@@ -1,0 +1,5 @@
+# Ignore credentials for Gmail API
+credentials.json
+
+# Ignore token.pickl
+token.pickle
