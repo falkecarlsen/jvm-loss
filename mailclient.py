@@ -54,7 +54,8 @@ def setupConnection():
 
 
 def addAllUnreadDispensedDrinkEvent(gmail_con, db_conn):
-    # TODO mark emails as unread. Or find better solution than to list all mails, perhaps also delete already-processed mails?
+    # TODO Mark emails as unread. Or find better solution than to list all mails, perhaps also delete already-processed mails?
+    # TODO Also I think it only gets one page of mails, currently gets exactly 100
     # Get all mails that are unread and have label dispenseddrinkevent. All mails containing the words "DispensedDrinkEvent"
     # automatically gets this label when received
     inbox = gmail_con.users().messages().list(userId='me', q='label:dispenseddrinkevent is:unread').execute()
