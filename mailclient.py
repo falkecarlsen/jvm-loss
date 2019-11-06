@@ -15,6 +15,8 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
 
 # TODO hvad hvis folk kommer til at købe noget, standse ved en fejl, og så tage den igen. Det tæller som 2 køb, men gælder faktisk kun for 1.
+# TODO errorhandling. Program ree's if there are no more mails that match the search
+# TODO better way to handle the naive no-work. Perhaps see if there are any unread. Also, might skip sat/sunday aswell
 
 # Sets up connection to gmail
 def setupConnection():
