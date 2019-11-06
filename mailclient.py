@@ -86,12 +86,17 @@ def main():
     db_conn = sqlite3.connect('jvm-loss.db')
     create_db(db_conn, True, True)
 
+    search = 'label:dispenseddrinkevent is:unread'
+
     while True:
-        # Once every 10 mins get all unread DispensedDrinkEvent and add to database
-        search = 'label:dispenseddrinkevent is:unread'
-        addUnreadDispensedDrinkEvent(gmail_con, db_conn, search)
-        print(len(get_events(db_conn)))
-        time.sleep(600)
+        currentHour = datetime.datetime.now().hour
+
+        # During working hours, check every 10mins, else wait an hour and check again
+        if 7 < currentHour and currentHour > 16:
+            addUnreadDispensedDrinkEvent(gmail_con, db_conn, search)
+            time.sleep(600)
+        else:
+            time.sleep(3600)
 
 
 if __name__ == '__main__':
