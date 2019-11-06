@@ -16,7 +16,7 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
 # TODO hvad hvis folk kommer til at købe noget, standse ved en fejl, og så tage den igen. Det tæller som 2 køb, men gælder faktisk kun for 1.
 # TODO errorhandling. Program ree's if there are no more mails that match the search
-# TODO better way to handle the naive no-work. Perhaps see if there are any unread. Also, might skip sat/sunday aswell
+# TODO better way to handle the naive no-work. Perhaps see if there are any unread
 
 # Sets up connection to gmail
 def setupConnection():
@@ -92,9 +92,10 @@ def main():
 
     while True:
         currentHour = datetime.datetime.now().hour
+        currentDay = datetime.datetime.now().isoweekday()
 
         # During working hours, check every 10mins, else wait an hour and check again
-        if 7 < currentHour and currentHour > 16:
+        if (7 <= currentHour <= 16) and (0 <= currentDay <= 4):
             addUnreadDispensedDrinkEvent(gmail_con, db_conn, search)
             time.sleep(600)
         else:
