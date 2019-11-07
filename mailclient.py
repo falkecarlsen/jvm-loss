@@ -61,24 +61,28 @@ def addUnreadDispensedDrinkEvent(gmail_con, db_conn, search):
     # Get all mails that match the search
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=20).execute()
 
-    # Gets information from mails in "minimal" format, as only a snippet of the mail is needed (recent event is in start of mail)
-    mails = [gmail_con.users().messages().get(userId="me", id=msg['id'], format="minimal").execute() for msg in
-             inbox["messages"]]
+    # Gets information from mails in "minimal" format, as only a snippet of the mail is needed
+    # (recent event is in start of mail)
+    try:
+        mails = [gmail_con.users().messages().get(userId="me", id=msg['id'], format="minimal").execute() for msg in
+                 inbox["messages"]]
 
-    # Array to hold ids of mails to remove "unread"- label
-    idsToModify = []
+        # Array to hold ids of mails to remove "unread"- label
+        idsToModify = []
 
-    for mail in mails:
-        # Add the DispensedDrinkEvent to db
-        insert_event(db_conn, getUnixTime(mail["snippet"]), "DispensedDrinkEvent", getDrink(mail["snippet"]))
+        for mail in mails:
+            # Add the DispensedDrinkEvent to db
+            insert_event(db_conn, getUnixTime(mail["snippet"]), "DispensedDrinkEvent", getDrink(mail["snippet"]))
 
-        # Append id to array
-        idsToModify.append(mail['id'])
+            # Append id to array
+            idsToModify.append(mail['id'])
 
-    # Remove "unread"- label on all mails in array
-    gmail_con.users().messages().batchModify(userId='me',
-                                             body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
-                                                   'ids': idsToModify}).execute()
+        # Remove "unread"- label on all mails in array
+        gmail_con.users().messages().batchModify(userId='me',
+                                                 body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
+                                                       'ids': idsToModify}).execute()
+    except:
+        print("No more unread DispensedDrinkEvents")
 
 
 def main():
