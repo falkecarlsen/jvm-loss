@@ -98,11 +98,15 @@ def main():
         currentHour = datetime.datetime.now().hour
         currentDay = datetime.datetime.now().isoweekday()
 
+        print(f"Hour: {currentHour}, day: {currentDay}")
+
         # During working hours, check every 10mins, else wait an hour and check again
-        if (7 <= currentHour <= 16) and (0 <= currentDay <= 4):
+        if (7 <= currentHour <= 16) and (1 <= currentDay <= 5):
+            print("Checking for unread dispense-events")
             addUnreadDispensedDrinkEvent(gmail_con, db_conn, search)
-            time.sleep(600)
+            time.sleep(1)
         else:
+            print("Not within working hours, waiting for an hour")
             time.sleep(3600)
 
 
