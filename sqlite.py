@@ -1,6 +1,7 @@
 import sqlite3
 import time
 import unittest
+from pprint import pprint
 
 TABLE_NAME = "jvm_dispense_events"
 DISPENSE_EVENT = "DispensedDrinkEvent"
@@ -48,6 +49,14 @@ def get_events_by_type(conn: sqlite3.Connection, type: str):
     return cur.fetchall()
 
 
+def get_events_by_item(conn: sqlite3.Connection, item: str):
+    cur = conn.cursor()
+    select_event_query = f'SELECT * FROM {TABLE_NAME} WHERE "event_item"=?'
+    # Note, parameters must be iterable
+    cur.execute(select_event_query, (item,))
+    return cur.fetchall()
+
+
 def get_events(conn: sqlite3.Connection):
     cur = conn.cursor()
     select_query = f'SELECT * FROM {TABLE_NAME}'
@@ -90,6 +99,32 @@ class TestDBFunctions(unittest.TestCase):
         self.assertEqual((get_event(db_conn, timestamp))[0][0], timestamp)
         self.assertEqual((get_event(db_conn, timestamp))[0][1], DISPENSE_EVENT)
         self.assertEqual((get_event(db_conn, timestamp))[0][2], event)
+
+    def test_database_get_typed_events(self):
+        db_conn = sqlite3.connect(f"{TEST_DB_PATH}/{self._testMethodName}.db")
+        create_db(db_conn, True, True)
+        timestamp = int(time.time())
+
+        coffee_item = "Hot Coffee with Milk"
+        water_item = "Hot Water without Milk"
+
+        for i in range(1, 3):
+            insert_event(db_conn, timestamp + i, DISPENSE_EVENT, coffee_item)
+            insert_event(db_conn, timestamp + (i * 2) + 1, DISPENSE_EVENT, water_item)
+
+        coffee_time = timestamp + 1
+        for item in get_events_by_item(db_conn, coffee_item):
+            self.assertEqual(item[0], coffee_time)
+            self.assertEqual(item[1], DISPENSE_EVENT)
+            self.assertEqual(item[2], coffee_item)
+            coffee_time += 1
+
+        water_time = timestamp + 3
+        for item in get_events_by_item(db_conn, water_item):
+            self.assertEqual(item[0], water_time)
+            self.assertEqual(item[1], DISPENSE_EVENT)
+            self.assertEqual(item[2], water_item)
+            water_time += 2
 
 
 if __name__ == '__main__':
