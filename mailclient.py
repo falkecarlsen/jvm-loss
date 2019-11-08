@@ -58,7 +58,7 @@ def getDrink(event):
     return re.findall("(?<=;)[a-zA-Z é]*(?=&)", event)[0]
 
 
-def addUnreadDispensedDrinkEvent(gmail_con, db_conn, search):
+def addNewEvents(gmail_con, db_conn, search):
     # Get all mails that match the search
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=20).execute()
 
@@ -104,7 +104,7 @@ def main():
         # During working hours, check every 5mins, else wait an hour and check again
         if (7 <= currentHour <= 16) and (1 <= currentDay <= 5):
             print(f"Checking for new '{search}'")
-            addUnreadDispensedDrinkEvent(gmail_con, db_conn, search)
+            addNewEvents(gmail_con, db_conn, search)
             time.sleep(300)
         else:
             print("Not within working hours, waiting for an hour")
