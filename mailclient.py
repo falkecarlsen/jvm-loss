@@ -104,7 +104,7 @@ def main():
         if (7 <= currentHour <= 16) and (1 <= currentDay <= 5):
             print("Checking for unread dispense-events")
             addUnreadDispensedDrinkEvent(gmail_con, db_conn, search)
-            time.sleep(1)
+            time.sleep(300)
         else:
             print("Not within working hours, waiting for an hour")
             time.sleep(3600)
