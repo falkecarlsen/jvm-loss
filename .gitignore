@@ -6,3 +6,6 @@ token.pickle
 
 # Ignore SQLite database
 jvm-loss.db
+
+# Ignore test-databases
+test-databases/*
