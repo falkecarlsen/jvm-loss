@@ -100,7 +100,7 @@ class TestDBFunctions(unittest.TestCase):
         self.assertEqual((get_event(db_conn, timestamp))[0][1], DISPENSE_EVENT)
         self.assertEqual((get_event(db_conn, timestamp))[0][2], event)
 
-    def test_database_get_typed_events(self):
+    def test_database_get_item_events(self):
         db_conn = sqlite3.connect(f"{TEST_DB_PATH}/{self._testMethodName}.db")
         create_db(db_conn, True, True)
         timestamp = int(time.time())
@@ -108,23 +108,26 @@ class TestDBFunctions(unittest.TestCase):
         coffee_item = "Hot Coffee with Milk"
         water_item = "Hot Water without Milk"
 
-        for i in range(1, 3):
+        # Create entries, ensuring that primary key timestamp is unique
+        for i in range(0, 20):
             insert_event(db_conn, timestamp + i, DISPENSE_EVENT, coffee_item)
-            insert_event(db_conn, timestamp + (i * 2) + 1, DISPENSE_EVENT, water_item)
+            insert_event(db_conn, timestamp + i + 1000, DISPENSE_EVENT, water_item)
 
-        coffee_time = timestamp + 1
+        # Assert that all coffee-items are as expected
+        coffee_time = timestamp
         for item in get_events_by_item(db_conn, coffee_item):
             self.assertEqual(item[0], coffee_time)
             self.assertEqual(item[1], DISPENSE_EVENT)
             self.assertEqual(item[2], coffee_item)
             coffee_time += 1
 
-        water_time = timestamp + 3
+        # Assert that all water-items are as expected
+        water_time = timestamp + 1000
         for item in get_events_by_item(db_conn, water_item):
             self.assertEqual(item[0], water_time)
             self.assertEqual(item[1], DISPENSE_EVENT)
             self.assertEqual(item[2], water_item)
-            water_time += 2
+            water_time += 1
 
 
 if __name__ == '__main__':
