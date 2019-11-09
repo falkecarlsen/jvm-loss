@@ -65,7 +65,7 @@ def get_events(conn: sqlite3.Connection):
 
 
 class TestDBFunctions(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Setup test-dir if it doesn't exist yet, for putting testing databases into
         :return:
@@ -73,6 +73,16 @@ class TestDBFunctions(unittest.TestCase):
         import os
         if not os.path.exists(TEST_DB_PATH):
             os.makedirs(TEST_DB_PATH)
+
+    def tearDown(self) -> None:
+        """
+        Removes all files in test-dir. FIXME; is fairly slow to execute
+        :return:
+        """
+        import os
+        for entry in os.scandir(TEST_DB_PATH):
+            if not entry.name.startswith('.') and entry.is_file():
+                os.remove(f"{TEST_DB_PATH}/{entry.name}")
 
     def test_database_creation(self):
         """
