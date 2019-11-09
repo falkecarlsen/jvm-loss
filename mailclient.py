@@ -5,6 +5,7 @@ import sqlite3
 import datetime
 import re
 import time
+import calendar
 from sqlite import create_db, insert_event, get_event, get_events
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -57,13 +58,13 @@ def getDrink(event):
     return re.findall("(?<=;)[a-zA-Z é]*(?=&)", event)[0]
 
 
-def addUnreadDispensedDrinkEvent(gmail_con, db_conn, search):
+def addNewEvents(gmail_con, db_conn, search):
     # Get all mails that match the search
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=20).execute()
 
     # Gets information from mails in "minimal" format, as only a snippet of the mail is needed
     # (recent event is in start of mail)
-    try:
+    if 0 < inbox["resultSizeEstimate"]:
         mails = [gmail_con.users().messages().get(userId="me", id=msg['id'], format="minimal").execute() for msg in
                  inbox["messages"]]
 
@@ -81,8 +82,8 @@ def addUnreadDispensedDrinkEvent(gmail_con, db_conn, search):
         gmail_con.users().messages().batchModify(userId='me',
                                                  body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
                                                        'ids': idsToModify}).execute()
-    except:
-        print("No more unread DispensedDrinkEvents")
+    else:
+        print(f"No new '{search}' since last check")
 
 
 def main():
@@ -98,12 +99,12 @@ def main():
         currentHour = datetime.datetime.now().hour
         currentDay = datetime.datetime.now().isoweekday()
 
-        print(f"Hour: {currentHour}, day: {currentDay}")
+        print(f"Hour: {currentHour}, day: {calendar.day_name[currentDay-1]}")
 
-        # During working hours, check every 10mins, else wait an hour and check again
+        # During working hours, check every 5mins, else wait an hour and check again
         if (7 <= currentHour <= 16) and (1 <= currentDay <= 5):
-            print("Checking for unread dispense-events")
-            addUnreadDispensedDrinkEvent(gmail_con, db_conn, search)
+            print(f"Checking for new '{search}'")
+            addNewEvents(gmail_con, db_conn, search)
             time.sleep(300)
         else:
             print("Not within working hours, waiting for an hour")
