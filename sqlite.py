@@ -49,6 +49,22 @@ def get_events_by_type(conn: sqlite3.Connection, type: str):
     return cur.fetchall()
 
 
+def get_events_by_type_newer_than(conn: sqlite3.Connection, type: str, time: int):
+    cur = conn.cursor()
+    select_event_query = f'SELECT * FROM {TABLE_NAME} WHERE "event_type"=? AND "timestamp" >=?'
+    # Note, parameters must be iterable
+    cur.execute(select_event_query, (type, time))
+    return cur.fetchall()
+
+
+def get_events_by_type_in_range(conn: sqlite3.Connection, type: str, lower_time: int, upper_time: int):
+    cur = conn.cursor()
+    select_event_query = f'SELECT * FROM {TABLE_NAME} WHERE "event_type"=? AND "timestamp" >=? AND "timestamp" <=?'
+    # Note, parameters must be iterable
+    cur.execute(select_event_query, (type, lower_time, upper_time))
+    return cur.fetchall()
+
+
 def get_events_by_item(conn: sqlite3.Connection, item: str):
     cur = conn.cursor()
     select_event_query = f'SELECT * FROM {TABLE_NAME} WHERE "event_item"=?'
@@ -138,6 +154,98 @@ class TestDBFunctions(unittest.TestCase):
             self.assertEqual(item[1], DISPENSE_EVENT)
             self.assertEqual(item[2], water_item)
             water_time += 1
+
+    def test_database_get_type_events(self):
+        db_conn = sqlite3.connect(f"{TEST_DB_PATH}/{self._testMethodName}.db")
+        create_db(db_conn, True, True)
+        timestamp = int(time.time())
+
+        ingredient_event = '"Ingredient \'Sugar\' is filled." Current grams: 2400 '
+        cleaning_event = '"Manual rengøring" "Espresso Brewer"   "success" '
+
+        ingredient_type = "IngredientLevel"
+        cleaning_type = "Rengørrings begivenhed"
+
+        # Create entries, ensuring that primary key timestamp is unique
+        for i in range(0, 20):
+            insert_event(db_conn, timestamp + i, ingredient_type, ingredient_event)
+            insert_event(db_conn, timestamp + i + 1000, cleaning_type, cleaning_event)
+
+        # Assert that all coffee-items are as expected
+        ingredient_time = timestamp
+        for item in get_events_by_type(db_conn, ingredient_type):
+            self.assertEqual(item[0], ingredient_time)
+            self.assertEqual(item[1], ingredient_type)
+            self.assertEqual(item[2], ingredient_event)
+            ingredient_time += 1
+
+        # Assert that all water-items are as expected
+        cleaning_time = timestamp + 1000
+        for item in get_events_by_type(db_conn, cleaning_type):
+            self.assertEqual(item[0], cleaning_time)
+            self.assertEqual(item[1], cleaning_type)
+            self.assertEqual(item[2], cleaning_event)
+            cleaning_time += 1
+
+    def test_database_get_type_events_newer_than(self):
+        db_conn = sqlite3.connect(f"{TEST_DB_PATH}/{self._testMethodName}.db")
+        create_db(db_conn, True, True)
+        timestamp = int(time.time())
+
+        ingredient_event = '"Ingredient \'Sugar\' is filled." Current grams: 2400 '
+        cleaning_event = '"Manual rengøring" "Espresso Brewer"   "success" '
+
+        ingredient_type = "IngredientLevel"
+        cleaning_type = "Rengørrings begivenhed"
+
+        # Insert same event at different times
+        insert_event(db_conn, timestamp - 5, ingredient_type, ingredient_event)
+        insert_event(db_conn, timestamp, ingredient_type, ingredient_event)
+        insert_event(db_conn, timestamp + 5, ingredient_type, ingredient_event)
+
+        # Insert differently typed event at different times
+        insert_event(db_conn, timestamp - 4, cleaning_type, cleaning_event)
+        insert_event(db_conn, timestamp + 1, cleaning_type, cleaning_event)
+        insert_event(db_conn, timestamp + 6, cleaning_type, cleaning_event)
+
+        # Assert that events were added
+        self.assertEqual(len(get_events(db_conn)), 6)
+
+        # Assert that three results are received when exactly within time-bounds
+        self.assertEqual(len(get_events_by_type_newer_than(db_conn, ingredient_type, timestamp - 5)), 3)
+        # Assert that no newer events exist
+        self.assertEqual(get_events_by_type_newer_than(db_conn, ingredient_type, timestamp + 10), [])
+
+    def test_database_get_type_events_in_range(self):
+        db_conn = sqlite3.connect(f"{TEST_DB_PATH}/{self._testMethodName}.db")
+        create_db(db_conn, True, True)
+        timestamp = int(time.time())
+
+        ingredient_event = '"Ingredient \'Sugar\' is filled." Current grams: 2400 '
+        cleaning_event = '"Manual rengøring" "Espresso Brewer"   "success" '
+
+        ingredient_type = "IngredientLevel"
+        cleaning_type = "Rengørrings begivenhed"
+
+        # Insert same event at different times
+        insert_event(db_conn, timestamp - 5, ingredient_type, ingredient_event)
+        insert_event(db_conn, timestamp - 2, ingredient_type, ingredient_event)
+        insert_event(db_conn, timestamp, ingredient_type, ingredient_event)
+        insert_event(db_conn, timestamp + 2, ingredient_type, ingredient_event)
+        insert_event(db_conn, timestamp + 5, ingredient_type, ingredient_event)
+
+        # Insert differently typed event at different times
+        insert_event(db_conn, timestamp - 4, cleaning_type, cleaning_event)
+        insert_event(db_conn, timestamp + 1, cleaning_type, cleaning_event)
+        insert_event(db_conn, timestamp + 6, cleaning_type, cleaning_event)
+
+        # Assert that events were added
+        self.assertEqual(len(get_events(db_conn)), 8)
+
+        # Assert that three results are received when exactly within time-bounds
+        self.assertEqual(len(get_events_by_type_in_range(db_conn, ingredient_type, timestamp - 2, timestamp + 2)), 3)
+        # Assert that no newer events exist
+        self.assertEqual(get_events_by_type_newer_than(db_conn, ingredient_type, timestamp + 10), [])
 
 
 if __name__ == '__main__':
