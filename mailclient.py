@@ -16,7 +16,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 # If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+SCOPES = ['https://mail.google.com/']
 
 
 # Sets up connection to gmail
@@ -44,12 +44,11 @@ def setupConnection():
 
 
 def send_message(gmail_con, sender, to, subject, message_text):
-    # todo fix mimetext, change scope
     message = MIMEText(message_text)
     message['to'] = to
     message['from'] = sender
     message['subject'] = subject
-    message = {'raw': base64.urlsafe_b64encode(message.as_string())}
+    message = {'raw': base64.urlsafe_b64encode(message.as_string().encode()).decode()}
 
     gmail_con.users().messages().send(userId='me', body=message).execute()
 
@@ -98,20 +97,31 @@ def addNewEvents(gmail_con, db_conn, search):
 
 
 def checkIngredientLevel(gmail_con):
-    inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel', maxResults=1).execute()
+    #TODO code looks a lot like 'addNewEvents' function, could perhaps abstract some logic
+    inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel  is:unread', maxResults=1).execute()
 
-    body = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='raw').execute()
+    if 0 < inbox["resultSizeEstimate"]:
+        body = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='raw').execute()
 
-    text = str(base64.urlsafe_b64decode(body['raw'].encode('ASCII'))).split("\\n")
+        text = str(base64.urlsafe_b64decode(body['raw'].encode('ASCII'))).split("\\n")
 
-    lowVolumes = []
-    for temp in text:
-        if "is under threshold" in temp:
-            lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
+        gmail_con.users().messages().Modify(userId='me',
+                                            body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
+                                                  'ids': inbox["messages"][0]['id']}).execute()
 
-    if 0 < len(lowVolumes):
-        print("There is a low volume, send a mail")
-        # send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mathiasmehlsoerensen@gmail.com', 'lowVolume', message)
+        lowVolumes = []
+        for temp in text:
+            if "is under threshold" in temp:
+                lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
+
+        # TODO could perhaps just forward the mail, instead of creating a new one
+        if 0 < len(lowVolumes):
+            print("Ingredient level under threshold, sending mail")
+            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk',
+                         'Low volume',
+                         str(lowVolumes).strip('[]').replace(",", "\n"))
+    else:
+        print("Ingredient level above threshold")
 
 
 def main():
@@ -121,7 +131,7 @@ def main():
     db_conn = sqlite3.connect('jvm-loss.db')
     create_db(db_conn, True, True)
 
-    search = 'label:label:jvm-dispenseddrinkevent  is:unread'
+    search = 'label:jvm-dispenseddrinkevent  is:unread'
 
     # while True:
     currentHour = datetime.datetime.now().hour
