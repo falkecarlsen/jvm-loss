@@ -1,4 +1,7 @@
 from __future__ import print_function
+
+from email.mime.text import MIMEText
+import base64
 import pickle
 import os.path
 import sqlite3
@@ -6,6 +9,7 @@ import datetime
 import re
 import time
 import calendar
+
 from sqlite import create_db, insert_event, get_event, get_events
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -14,10 +18,6 @@ from google.auth.transport.requests import Request
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
-
-# TODO hvad hvis folk kommer til at købe noget, standse ved en fejl, og så tage den igen. Det tæller som 2 køb, men gælder faktisk kun for 1.
-# TODO errorhandling. Program ree's if there are no more mails that match the search
-# TODO better way to handle the naive no-work. Perhaps see if there are any unread
 
 # Sets up connection to gmail
 def setupConnection():
@@ -41,6 +41,17 @@ def setupConnection():
             pickle.dump(creds, token)
 
     return build('gmail', 'v1', credentials=creds)
+
+
+def send_message(gmail_con, sender, to, subject, message_text):
+    # todo fix mimetext, change scope
+    message = MIMEText(message_text)
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+    message = {'raw': base64.urlsafe_b64encode(message.as_string())}
+
+    gmail_con.users().messages().send(userId='me', body=message).execute()
 
 
 # Converts the timestamp in mail for dispenseEvent to unix timestamp
@@ -86,6 +97,23 @@ def addNewEvents(gmail_con, db_conn, search):
         print(f"No new '{search}' since last check")
 
 
+def checkIngredientLevel(gmail_con):
+    inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel', maxResults=1).execute()
+
+    body = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='raw').execute()
+
+    text = str(base64.urlsafe_b64decode(body['raw'].encode('ASCII'))).split("\\n")
+
+    lowVolumes = []
+    for temp in text:
+        if "is under threshold" in temp:
+            lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
+
+    if 0 < len(lowVolumes):
+        print("There is a low volume, send a mail")
+        # send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mathiasmehlsoerensen@gmail.com', 'lowVolume', message)
+
+
 def main():
     gmail_con = setupConnection()
 
@@ -93,22 +121,27 @@ def main():
     db_conn = sqlite3.connect('jvm-loss.db')
     create_db(db_conn, True, True)
 
-    search = 'label:dispenseddrinkevent is:unread'
+    search = 'label:label:jvm-dispenseddrinkevent  is:unread'
 
-    while True:
-        currentHour = datetime.datetime.now().hour
-        currentDay = datetime.datetime.now().isoweekday()
+    # while True:
+    currentHour = datetime.datetime.now().hour
+    currentDay = datetime.datetime.now().isoweekday()
 
-        print(f"Hour: {currentHour}, day: {calendar.day_name[currentDay-1]}")
+    print(f"Hour: {currentHour}, day: {calendar.day_name[currentDay - 1]}")
 
-        # During working hours, check every 5mins, else wait an hour and check again
-        if (7 <= currentHour <= 16) and (1 <= currentDay <= 5):
-            print(f"Checking for new '{search}'")
-            addNewEvents(gmail_con, db_conn, search)
-            time.sleep(300)
-        else:
-            print("Not within working hours, waiting for an hour")
-            time.sleep(3600)
+    # During working hours, check every 5mins, else wait an hour and check again
+    if (7 <= currentHour <= 16) and (1 <= currentDay <= 5):
+        # Check for new dispenseddrinkevents, and add to db
+        print(f"Checking for new '{search}'")
+        addNewEvents(gmail_con, db_conn, search)
+
+        # Check if any ingredient level is under threshold
+        checkIngredientLevel(gmail_con)
+
+        time.sleep(300)
+    else:
+        print("Not within working hours, waiting for an hour")
+        time.sleep(3600)
 
 
 if __name__ == '__main__':
