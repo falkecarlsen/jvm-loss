@@ -105,9 +105,8 @@ def checkIngredientLevel(gmail_con):
 
         text = str(base64.urlsafe_b64decode(body['raw'].encode('ASCII'))).split("\\n")
 
-        gmail_con.users().messages().Modify(userId='me',
-                                            body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
-                                                  'ids': inbox["messages"][0]['id']}).execute()
+        gmail_con.users().messages().modify(userId='me', id=inbox["messages"][0]['id'],
+                                            body={'removeLabelIds': ['UNREAD'], 'addLabelIds': []}).execute()
 
         lowVolumes = []
         for temp in text:
