@@ -99,28 +99,38 @@ def add_new_events(gmail_con, db_conn, search):
 
 
 def checkIngredientLevel(gmail_con):
-    #TODO code looks a lot like 'addNewEvents' function, could perhaps abstract some logic
-    inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel  is:unread', maxResults=1).execute()
+    # TODO code looks a lot like 'addNewEvents' function, could perhaps abstract some logic
+    inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel  is:unread',
+                                              maxResults=1).execute()
 
     if 0 < inbox["resultSizeEstimate"]:
         body = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='raw').execute()
 
-        text = str(base64.urlsafe_b64decode(body['raw'].encode('ASCII'))).split("\\n")
+        text = str(base64.urlsafe_b64decode(body['raw'].encode('utf-8'))).split("\\n")
 
+        lowVolumes = []
+        drinks = []
+        for temp in text:
+            if "is under threshold" in temp:
+                drink = re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", temp)[0]
+                if len(lowVolumes) == 0:
+                    lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
+                    drinks.append(drink)
+                if drink in drinks:
+                    continue
+                else:
+                    lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
+                    drinks.append(drink)
+
+    # TODO could perhaps just forward the mail, instead of creating a new one
+    if 0 < len(lowVolumes):
+        print("Ingredient level under threshold, sending mail")
+        send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk',
+                     'Low volume',
+                     str(lowVolumes).strip('[]').replace(",", "\n"))
         gmail_con.users().messages().modify(userId='me', id=inbox["messages"][0]['id'],
                                             body={'removeLabelIds': ['UNREAD'], 'addLabelIds': []}).execute()
 
-        lowVolumes = []
-        for temp in text:
-            if "is under threshold" in temp:
-                lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
-
-        # TODO could perhaps just forward the mail, instead of creating a new one
-        if 0 < len(lowVolumes):
-            print("Ingredient level under threshold, sending mail")
-            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk',
-                         'Low volume',
-                         str(lowVolumes).strip('[]').replace(",", "\n"))
     else:
         print("Ingredient level above threshold")
 
@@ -152,14 +162,19 @@ def main():
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
         # During working hours, check every 5 minutes, else wait an hour and check again
-        if (7 <= current_hour <= 16) and (1 <= current_day <= 5):
+        if (7 <= current_hour <= 24) and (1 <= current_day <= 5):
             print(f"Checking for new '{search}'")
             add_new_events(gmail_con, db_conn, search)
-            print(f"Done checking for new '{search}', sleeping for 5 minutes")
+            print(f"Done checking for new '{search}'")
+
+            print("Checking for low ingredients")
+            checkIngredientLevel(gmail_con)
+            print("Done checking for low ingredients, sleeping for 5 minutes\n")
             time.sleep(300)
         else:
-            print("Not within working hours, waiting for an hour")
+            print("Not within working hours, waiting for an hour\n")
             time.sleep(3600)
+
 
 if __name__ == '__main__':
     main()
