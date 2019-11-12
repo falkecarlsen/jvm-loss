@@ -9,18 +9,19 @@ import datetime
 import re
 import time
 import calendar
-
-from sqlite import create_db, insert_event, get_event, get_events
+from pprint import pprint
+from sqlite import create_db, insert_event, get_last_event, get_events
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://mail.google.com/']
+DB_FILE_NAME = "jvm-loss.db"
 
 
 # Sets up connection to gmail
-def setupConnection():
+def setup_gmail_connection():
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -54,7 +55,7 @@ def send_message(gmail_con, sender, to, subject, message_text):
 
 
 # Converts the timestamp in mail for dispenseEvent to unix timestamp
-def getUnixTime(time):
+def convert_formatted_timestamp(time):
     # Get all numbers from the snippet
     array = list(map(int, re.findall(r'[0-9]+', time)))
 
@@ -64,11 +65,11 @@ def getUnixTime(time):
 
 
 # Return the name of the first drink
-def getDrink(event):
+def get_drink(event):
     return re.findall("(?<=;)[a-zA-Z é]*(?=&)", event)[0]
 
 
-def addNewEvents(gmail_con, db_conn, search):
+def add_new_events(gmail_con, db_conn, search):
     # Get all mails that match the search
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=20).execute()
 
@@ -83,7 +84,8 @@ def addNewEvents(gmail_con, db_conn, search):
 
         for mail in mails:
             # Add the DispensedDrinkEvent to db
-            insert_event(db_conn, getUnixTime(mail["snippet"]), "DispensedDrinkEvent", getDrink(mail["snippet"]))
+            insert_event(db_conn, convert_formatted_timestamp(mail["snippet"]), "DispensedDrinkEvent",
+                         get_drink(mail["snippet"]))
 
             # Append id to array
             idsToModify.append(mail['id'])
@@ -124,34 +126,40 @@ def checkIngredientLevel(gmail_con):
 
 
 def main():
-    gmail_con = setupConnection()
+    gmail_con = setup_gmail_connection()
 
-    # Create database
-    db_conn = sqlite3.connect('jvm-loss.db')
-    create_db(db_conn, True, True)
-
-    search = 'label:jvm-dispenseddrinkevent  is:unread'
-
-    # while True:
-    currentHour = datetime.datetime.now().hour
-    currentDay = datetime.datetime.now().isoweekday()
-
-    print(f"Hour: {currentHour}, day: {calendar.day_name[currentDay - 1]}")
-
-    # During working hours, check every 5mins, else wait an hour and check again
-    if (7 <= currentHour <= 16) and (1 <= currentDay <= 5):
-        # Check for new dispenseddrinkevents, and add to db
-        print(f"Checking for new '{search}'")
-        addNewEvents(gmail_con, db_conn, search)
-
-        # Check if any ingredient level is under threshold
-        checkIngredientLevel(gmail_con)
-
-        time.sleep(300)
+    # Check whether to resume using db or create a new one
+    if os.path.exists(DB_FILE_NAME):
+        db_conn = sqlite3.connect('jvm-loss.db')
+        # Get last event for status message
+        last_event = get_last_event(db_conn)
+        # Check that last event is not empty
+        if len(last_event) > 0:
+            print(f"UTC timestamp of last event in db: "
+                  f"{datetime.datetime.utcfromtimestamp(last_event[0][0]).strftime('%Y-%m-%d %H:%M:%S')}. "
+                  f"Total number of events: {len(get_events(db_conn))}")
     else:
-        print("Not within working hours, waiting for an hour")
-        time.sleep(3600)
+        print("Database does not exist on disk, creating a new one")
+        db_conn = sqlite3.connect('jvm-loss.db')
+        create_db(db_conn, True, True)
 
+    search = 'label:jvm-dispenseddrinkevent is:unread'
+
+    while True:
+        current_hour = datetime.datetime.now().hour
+        current_day = datetime.datetime.now().isoweekday()
+
+        print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
+
+        # During working hours, check every 5 minutes, else wait an hour and check again
+        if (7 <= current_hour <= 16) and (1 <= current_day <= 5):
+            print(f"Checking for new '{search}'")
+            add_new_events(gmail_con, db_conn, search)
+            print(f"Done checking for new '{search}', sleeping for 5 minutes")
+            time.sleep(300)
+        else:
+            print("Not within working hours, waiting for an hour")
+            time.sleep(3600)
 
 if __name__ == '__main__':
     main()

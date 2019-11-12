@@ -80,6 +80,13 @@ def get_events(conn: sqlite3.Connection):
     return cur.fetchall()
 
 
+def get_last_event(conn: sqlite3.Connection):
+    cur = conn.cursor()
+    select_last_query = f'SELECT * FROM    {TABLE_NAME} WHERE   timestamp = (SELECT MAX(timestamp)  FROM {TABLE_NAME});'
+    cur.execute(select_last_query)
+    return cur.fetchall()
+
+
 class TestDBFunctions(unittest.TestCase):
     def setUp(self) -> None:
         """
@@ -246,6 +253,20 @@ class TestDBFunctions(unittest.TestCase):
         self.assertEqual(len(get_events_by_type_in_range(db_conn, ingredient_type, timestamp - 2, timestamp + 2)), 3)
         # Assert that no newer events exist
         self.assertEqual(get_events_by_type_newer_than(db_conn, ingredient_type, timestamp + 10), [])
+
+    def test_database_get_last_event(self):
+        db_conn = sqlite3.connect(f"{TEST_DB_PATH}/{self._testMethodName}.db")
+        create_db(db_conn, True, True)
+        timestamp = int(time.time())
+
+        coffee_item = "Hot Coffee with Milk"
+
+        for i in range(10):
+            insert_event(db_conn, timestamp + i, DISPENSE_EVENT, coffee_item)
+
+        last_event = get_last_event(db_conn)
+        # Assert that timestamp is equal to last inserted event
+        self.assertEqual(last_event[0][0], timestamp + 9)
 
 
 if __name__ == '__main__':
