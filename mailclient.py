@@ -111,15 +111,17 @@ def checkIngredientLevel(gmail_con):
         drinks = []
         for temp in text:
             if "is under threshold" in temp:
-                drink = re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", temp)[0]
-                if len(lowVolumes) == 0:
-                    lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
-                    drinks.append(drink)
-                if drink in drinks:
-                    continue
-                else:
-                    lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
-                    drinks.append(drink)
+                if datetime.datetime.now().isoweekday() is datetime.datetime.fromtimestamp(
+                        convert_formatted_timestamp(temp) / 1000).isoweekday():
+                    drink = re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", temp)[0]
+                    if len(lowVolumes) == 0:
+                        lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
+                        drinks.append(drink)
+                    if drink in drinks:
+                        continue
+                    else:
+                        lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
+                        drinks.append(drink)
 
     # TODO could perhaps just forward the mail, instead of creating a new one
     if 0 < len(lowVolumes):
@@ -162,19 +164,16 @@ def main():
 
         # During working hours, check every 5 minutes, else wait an hour and check again
         if (7 <= current_hour <= 24) and (1 <= current_day <= 5):
+
             print(f"Checking for new '{search}'")
             add_new_events(gmail_con, db_conn, search)
-<<<<<<< HEAD
-            print(f"Done checking for new '{search}', sleeping for 5 minutes")
-            # Check if any ingredient level is under threshold
-            checkIngredientLevel(gmail_con)
-=======
             print(f"Done checking for new '{search}'")
 
             print("Checking for low ingredients")
             checkIngredientLevel(gmail_con)
-            print("Done checking for low ingredients, sleeping for 5 minutes\n")
->>>>>>> d7ca5d6f367afd02b6bdd0ec0b8fe1c05c3be4a8
+            print("Done checking for low ingredients")
+
+            print("Sleeping for 5 minutes\n")
             time.sleep(300)
         else:
             print("Not within working hours, waiting for an hour\n")
