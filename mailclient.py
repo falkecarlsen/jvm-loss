@@ -103,34 +103,32 @@ def checkIngredientLevel(gmail_con):
                                               maxResults=1).execute()
 
     if 0 < inbox["resultSizeEstimate"]:
-        body = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='raw').execute()
+        email = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='full').execute()
+        body = str(base64.urlsafe_b64decode(email['payload']['parts'][0]['parts'][0]['body']['data']))
+        lines = body.split('\\n')
 
-        text = str(base64.urlsafe_b64decode(body['raw'].encode('utf-8'))).split("\\n")
-
-        lowVolumes = []
         drinks = []
-        for temp in text:
-            if "is under threshold" in temp:
-                if datetime.datetime.now().isoweekday() is datetime.datetime.fromtimestamp(
-                        convert_formatted_timestamp(temp) / 1000).isoweekday():
-                    drink = re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", temp)[0]
-                    if len(lowVolumes) == 0:
-                        lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
-                        drinks.append(drink)
-                    if drink in drinks:
-                        continue
-                    else:
-                        lowVolumes.append(temp.replace(' \\r', '').replace('\\', ''))
-                        drinks.append(drink)
+        low_volumes = []
+        for line in lines:
+            if "is under threshold" not in line:
+                continue
+            elif datetime.datetime.now().isoweekday() - 6 is not datetime.datetime.fromtimestamp(
+                    convert_formatted_timestamp(line) / 1000).isoweekday():
+                continue
+            elif re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0] in drinks:
+                continue
+            else:
+                drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0])
+                low_volumes.append(line)
 
-    # TODO could perhaps just forward the mail, instead of creating a new one
-    if 0 < len(lowVolumes):
-        print("Ingredient level under threshold, sending mail")
-        send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk',
-                     'Low volume',
-                     str(lowVolumes).strip('[]').replace(",", "\n"))
-        gmail_con.users().messages().modify(userId='me', id=inbox["messages"][0]['id'],
-                                            body={'removeLabelIds': ['UNREAD'], 'addLabelIds': []}).execute()
+        # TODO could perhaps just forward the mail, instead of creating a new one
+        if 0 < len(low_volumes):
+            print("Ingredient level under threshold, sending mail")
+            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk',
+                         'Low volume',
+                        str(low_volumes).strip('[]').replace(",", "\n"))
+            gmail_con.users().messages().modify(userId='me', id=inbox["messages"][0]['id'],
+                                                body={'removeLabelIds': ['UNREAD'], 'addLabelIds': []}).execute()
 
     else:
         print("Ingredient level above threshold")
