@@ -104,16 +104,16 @@ def checkIngredientLevel(gmail_con):
 
     if 0 < inbox["resultSizeEstimate"]:
         email = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='full').execute()
-        body = str(base64.urlsafe_b64decode(email['payload']['parts'][0]['parts'][0]['body']['data']))
-        lines = body.split('\\n')
+        lines_in_mail = str(base64.urlsafe_b64decode(email['payload']['parts'][0]['parts'][0]['body']['data'])).split(
+            '\\n')
 
         drinks = []
         low_volumes = []
-        for line in lines:
+        for line in lines_in_mail:
             if "is under threshold" not in line:
                 continue
-            elif datetime.datetime.now().isoweekday() - 6 is not datetime.datetime.fromtimestamp(
-                    convert_formatted_timestamp(line) / 1000).isoweekday():
+            elif datetime.datetime.now().isoweekday() is not datetime.datetime.fromtimestamp(
+                    convert_formatted_timestamp(line)).isoweekday():
                 continue
             elif re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0] in drinks:
                 continue
@@ -124,9 +124,9 @@ def checkIngredientLevel(gmail_con):
         # TODO could perhaps just forward the mail, instead of creating a new one
         if 0 < len(low_volumes):
             print("Ingredient level under threshold, sending mail")
-            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk',
+            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mathiasmehlsoerensen@gmail.com, fvejlb@student.aau.dk',
                          'Low volume',
-                        str(low_volumes).strip('[]').replace(",", "\n"))
+                         str(low_volumes).strip('[]').replace(",", "\n"))
             gmail_con.users().messages().modify(userId='me', id=inbox["messages"][0]['id'],
                                                 body={'removeLabelIds': ['UNREAD'], 'addLabelIds': []}).execute()
 
