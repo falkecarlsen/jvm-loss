@@ -97,7 +97,7 @@ def add_new_events(gmail_con, db_conn, search):
         print(f"No new '{search}' since last check")
 
 
-def checkIngredientLevel(gmail_con):
+def check_under_threshold(gmail_con):
     # TODO code looks a lot like 'addNewEvents' function, could perhaps abstract some logic
     inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel  is:unread',
                                               maxResults=1).execute()
@@ -168,7 +168,7 @@ def main():
             print(f"Done checking for new '{search}'")
 
             print("Checking for low ingredients")
-            checkIngredientLevel(gmail_con)
+            check_under_threshold(gmail_con)
             print("Done checking for low ingredients")
 
             print("Sleeping for 5 minutes\n")
