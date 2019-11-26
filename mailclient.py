@@ -1,4 +1,7 @@
 from __future__ import print_function
+
+from email.mime.text import MIMEText
+import base64
 import pickle
 import os.path
 import sqlite3
@@ -6,21 +9,15 @@ import datetime
 import re
 import time
 import calendar
-from pprint import pprint
-
 from sqlite import create_db, insert_event, get_last_event, get_events
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 # If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+SCOPES = ['https://mail.google.com/']
 DB_FILE_NAME = "jvm-loss.db"
 
-
-# TODO hvad hvis folk kommer til at købe noget, standse ved en fejl, og så tage den igen. Det tæller som 2 køb, men gælder faktisk kun for 1.
-# TODO errorhandling. Program ree's if there are no more mails that match the search
-# TODO better way to handle the naive no-work. Perhaps see if there are any unread
 
 # Sets up connection to gmail
 def setup_gmail_connection():
@@ -44,6 +41,16 @@ def setup_gmail_connection():
             pickle.dump(creds, token)
 
     return build('gmail', 'v1', credentials=creds)
+
+
+def send_message(gmail_con, sender, to, subject, message_text):
+    message = MIMEText(message_text)
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+    message = {'raw': base64.urlsafe_b64encode(message.as_string().encode()).decode()}
+
+    gmail_con.users().messages().send(userId='me', body=message).execute()
 
 
 # Converts the timestamp in mail for dispenseEvent to unix timestamp
@@ -90,6 +97,43 @@ def add_new_events(gmail_con, db_conn, search):
         print(f"No new '{search}' since last check")
 
 
+def check_under_threshold(gmail_con):
+    # TODO code looks a lot like 'addNewEvents' function, could perhaps abstract some logic
+    inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel  is:unread',
+                                              maxResults=1).execute()
+
+    if 0 < inbox["resultSizeEstimate"]:
+        email = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='full').execute()
+        lines_in_mail = str(base64.urlsafe_b64decode(email['payload']['parts'][0]['parts'][0]['body']['data'])).split(
+            '\\n')
+
+        drinks = []
+        low_volumes = []
+        for line in lines_in_mail:
+            if "is under threshold" not in line:
+                continue
+            elif datetime.datetime.now().isoweekday() is not datetime.datetime.fromtimestamp(
+                    convert_formatted_timestamp(line)).isoweekday():
+                continue
+            elif re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0] in drinks:
+                continue
+            else:
+                drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0])
+                low_volumes.append(line)
+
+        # TODO could perhaps just forward the mail, instead of creating a new one
+        if 0 < len(low_volumes):
+            print("Ingredient level under threshold, sending mail")
+            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mathiasmehlsoerensen@gmail.com, fvejlb@student.aau.dk',
+                         'Low volume',
+                         str(low_volumes).strip('[]').replace(",", "\n"))
+            gmail_con.users().messages().modify(userId='me', id=inbox["messages"][0]['id'],
+                                                body={'removeLabelIds': ['UNREAD'], 'addLabelIds': []}).execute()
+
+    else:
+        print("Ingredient level above threshold")
+
+
 def main():
     gmail_con = setup_gmail_connection()
 
@@ -117,13 +161,20 @@ def main():
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
         # During working hours, check every 5 minutes, else wait an hour and check again
-        if (7 <= current_hour <= 16) and (1 <= current_day <= 5):
+        if (7 <= current_hour <= 24) and (1 <= current_day <= 5):
+
             print(f"Checking for new '{search}'")
             add_new_events(gmail_con, db_conn, search)
-            print(f"Done checking for new '{search}', sleeping for 5 minutes")
+            print(f"Done checking for new '{search}'")
+
+            print("Checking for low ingredients")
+            check_under_threshold(gmail_con)
+            print("Done checking for low ingredients")
+
+            print("Sleeping for 5 minutes\n")
             time.sleep(300)
         else:
-            print("Not within working hours, waiting for an hour")
+            print("Not within working hours, waiting for an hour\n")
             time.sleep(3600)
 
 
