@@ -5,3 +5,7 @@ The JVM(Java Vending Machine) at Strandvejen may experience some loss(making cof
 1. Download the credentials.json for fklub.jvmloss@gmail.com
 1. Run `mailclient.py`, allowing potential authorisation-requests in web-browser
 1. Consider that this is immensely WIP and prone to break
+
+Alternatively, build a Docker image and run it with the following commands. Note that you have to embed the authentication into the Docker `credentials.json` and `token.pickle`.
+1. `docker build --tag=jvm-loss .`
+1. `docker run --rm -it jvm-loss` The `--rm` flag removes the container upon stopping it.
