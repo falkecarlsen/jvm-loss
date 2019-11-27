@@ -97,7 +97,7 @@ def get_drink(event):
 
 
 def check_clean_events():
-    return []
+    pass
 
 
 def check_dispensed(gmail_con, db_conn):
@@ -125,12 +125,12 @@ def check_failures():
     pass
 
 
-# TODO add to DB and thread to send mail again
 def check_ingredient_level(gmail_con):
     mails, ids = get_mails(gmail_con, 'label:jvm-ingredientlevel  is:unread', 5)
 
+    # Find all lines in the mails which are "under threshold" and from today
+    # Send all such lines (no duplicates) as an email to the maintainers of JVM
     if 0 < len(mails):
-
         drinks = []
         low_volumes = []
         for mail in mails:
@@ -150,7 +150,7 @@ def check_ingredient_level(gmail_con):
         # Send a mail with low volumes
         if 0 < len(low_volumes):
             print("Ingredient level under threshold, sending mail")
-            send_message(gmail_con, 'mmsa17@student.aau.dk', 'mathiasmehlsoerensen@gmail.com',
+            send_message(gmail_con, 'fvejlb17@student.aau.dk', 'mmsa17@student.aau.dk',
                          'Low volume',
                          str(low_volumes).strip('[]').replace(",", "\n"))
 
@@ -163,6 +163,7 @@ def check_ingredient_level(gmail_con):
 
 
 def check_menu():
+    pass
 
 
 def check_safety():
@@ -175,7 +176,7 @@ def check_for_mails(gmail_con, db_conn):
     print("Checking for new clean events")
     ids = check_clean_events()
     if 0 < len(ids):
-        mark_mail_unread.append(ids)
+        mark_mail_unread.extend(ids)
     print("Done checking for new clean events")
     """
     print("Checking for new dispensed")
@@ -185,11 +186,15 @@ def check_for_mails(gmail_con, db_conn):
     print("Done checking for new dispensed")
     """
     print("Checking for new EVADTS")
-    mark_mail_unread.append(check_evadts())
+    ids = check_evadts()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
     print("Done checking for new EVADTS")
 
     print("Checking for new failures")
-    mark_mail_unread.append(check_failures())
+    ids = check_failures()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
     print("Done checking for new failures")
     """
     print("Checking for new ingredient level")
@@ -199,13 +204,18 @@ def check_for_mails(gmail_con, db_conn):
     print("Done checking for ingredient level")
     """
     print("Checking for new menu events")
-    mark_mail_unread.append(check_menu())
+    ids = check_menu()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
     print("Done checking for new menu events")
 
     print("Checking for new safety mails")
-    mark_mail_unread.append(check_safety())
+    ids = check_safety()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
     print("Done checking for new safety mails")
     """
+
     # Mark all read mails as unread
     if 0 < len(mark_mail_unread):
         gmail_con.users().messages().batchModify(userId='me', body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
