@@ -138,7 +138,7 @@ def check_ingredient_level(gmail_con):
             for line in lines:
                 if "is under threshold" not in line:
                     continue
-                elif datetime.datetime.now().isoweekday() - 1 is not datetime.datetime.fromtimestamp(
+                elif datetime.datetime.now().isoweekday() is not datetime.datetime.fromtimestamp(
                         convert_formatted_timestamp(line)).isoweekday():
                     continue
                 elif re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0] in drinks:
@@ -239,7 +239,7 @@ def main():
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
         # During working hours, check every 5 minutes, else wait an hour and check again
-        if (7 <= current_hour <= 24) and (1 <= current_day <= 5):
+        if (7 <= current_hour <= 17) and (1 <= current_day <= 5):
 
             print("Checking for new mails")
             mails_read = check_for_mails(gmail_con, db_conn)
