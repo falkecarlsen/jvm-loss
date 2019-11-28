@@ -87,6 +87,13 @@ def get_last_event(conn: sqlite3.Connection):
     return cur.fetchall()
 
 
+def get_last_event_by_type(conn: sqlite3.Connection, type: str):
+    cur = conn.cursor()
+    select_last_query_by_type = f'SELECT * FROM    {TABLE_NAME} WHERE   timestamp = (SELECT MAX(timestamp) AND "event_type"=? FROM {TABLE_NAME});'
+    cur.execute(select_last_query_by_type, type)
+    return cur.fetchall()
+
+
 class TestDBFunctions(unittest.TestCase):
     def setUp(self) -> None:
         """
