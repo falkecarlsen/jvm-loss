@@ -10,6 +10,7 @@ import re
 import time
 import calendar
 import _thread
+import sys
 from sqlite import create_db, insert_event, get_last_event, get_events
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -27,12 +28,20 @@ DB_FILE_NAME = "jvm-loss.db"
 
 # Sets up connection to gmail
 def setup_gmail_connection():
+
+    if 1 < len(sys.argv) and sys.argv[1] == 'test':
+        token_pickle = 'token_test.pickle'
+        credentials = 'credentials_test.json'
+    else:
+        token_pickle = 'token.pickle'
+        credentials = 'credentials.json'
+
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    if os.path.exists(token_pickle):
+        with open(token_pickle, 'rb') as token:
             creds = pickle.load(token)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -40,10 +49,10 @@ def setup_gmail_connection():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
+                credentials, SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('token.pickle', 'wb') as token:
+        with open(token_pickle, 'wb') as token:
             pickle.dump(creds, token)
 
     return build('gmail', 'v1', credentials=creds)
