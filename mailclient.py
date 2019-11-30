@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import pprint
 from email.mime.text import MIMEText
 import base64
 import pickle
@@ -11,7 +12,7 @@ import time
 import calendar
 import _thread
 import sys
-from sqlite import create_db, insert_event, get_last_event, get_events
+from sqlite import create_db, insert_event, get_last_event, get_events, get_last_event_by_type
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -20,11 +21,81 @@ from google.auth.transport.requests import Request
 SCOPES = ['https://mail.google.com/']
 DB_FILE_NAME = "jvm-loss.db"
 
-
 # todo add more tables, or insert all kind of mails into existing table when mail is read
 # todo multithread to see if under threshold has been fixed
 # todo add ingrediens level to db, and insert event each time an ingredient level is changed, either by dispenseddrink event, or other
 # todo query by sending mail to jvmloss or do slack bot
+# TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
+
+
+# Todo QA this list, both with names (i think too many are added here, and with incorrect translations) and number
+coffee_beans_usage = {"Café choco": 8,
+                      "Cappuccino": 8,
+                      "Café au lait sugar": 8,
+                      "Choco lux": 8,
+                      "Chocolate": 0,
+                      "Coffee": 8,
+                      "Coffee with sugar": 8,
+                      "Espresso": 8,
+                      "Filter kaffe": 8,
+                      "Filter coffee milk": 8,
+                      "Hot water": 8,
+                      "Wiener melange": 8,
+
+                      # todo check if these is correct
+                      "Lungo": 8,
+                      "Lungo with sugar": 8,
+                      "Lungo with milk": 8,
+                      "Lungo with sugar and milk": 8,
+                      "Espresso with sugar": 8,
+                      "Cappuccino with sugar": 8,
+                      "Espresso with milk": 8,
+                      "hot cacao": 8,
+                      "Café au lait": 8,
+                      "Latte macchiato": 8,
+                      "Espresso with sugar and milk": 8,
+                      "Hot cacao with milk": 8,
+                      "Café au lait with sugar": 8,
+                      "Latte macchiato with sugar": 8,
+                      "Coffee with milk": 8,
+                      "Coffee with sugar and milk": 8}
+
+milk_powder_usage = {"Café choco": 8,
+                     "Cappuccino": 8,
+                     "Coffee with sugar": 8,
+                     "Café au lait sugar": 8,
+                     "Coffee": 8,
+                     "Choco lux": 8,
+                     "Chocolate": 0,
+                     "Hot water": 8,
+                     "Filter kaffe": 8,
+                     "Filter coffee milk": 8,
+                     "Wiener melange": 8}
+
+cacao_powder_usage = {"Café choco": 8,
+                      "Cappuccino": 8,
+                      "Coffee with sugar": 8,
+                      "Café au lait sugar": 8,
+                      "Coffee": 8,
+                      "Choco lux": 8,
+                      "Chocolate": 0,
+                      "Hot water": 8,
+                      "Filter kaffe": 8,
+                      "Filter coffee milk": 8,
+                      "Wiener melange": 8}
+
+sugar_usage = {"Café choco": 8,
+               "Cappuccino": 8,
+               "Coffee with sugar": 8,
+               "Café au lait sugar": 8,
+               "Coffee": 8,
+               "Choco lux": 8,
+               "Chocolate": 0,
+               "Hot water": 8,
+               "Filter kaffe": 8,
+               "Filter coffee milk": 8,
+               "Wiener melange": 8}
+
 
 # Sets up connection to gmail
 def setup_gmail_connection():
@@ -58,7 +129,7 @@ def setup_gmail_connection():
 
 
 # Returns body of mails (only the text part) and the id of mails
-def get_mails(gmail_con, search, max_results):
+def get_mails_body(gmail_con, search, max_results):
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=max_results).execute()
 
     if 0 < inbox["resultSizeEstimate"]:
@@ -71,6 +142,29 @@ def get_mails(gmail_con, search, max_results):
                 for mail in mails], ids
     else:
         return [], []
+
+
+def get_mails_sender(gmail_con, search, max_results):
+    inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=max_results).execute()
+
+    if 0 < inbox["resultSizeEstimate"]:
+        mails = [gmail_con.users().messages().get(userId="me", id=msg['id'], format="full").execute() for msg in
+                 inbox["messages"]]
+
+        ids = [mail['id'] for mail in mails]
+
+        return [str(mail['payload']['headers'][6]['value']).replace("<", "").replace(">", "")
+                for mail in mails], ids
+        # return str(mails[0]['payload']['headers'][6]['value']).replace("<", "").replace(">", "")
+
+    else:
+        return [], []
+
+
+def mark_mails_unread(gmail_con, ids):
+    if 0 < len(ids):
+        gmail_con.users().messages().batchModify(userId='me', body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
+                                                                    'ids': ids}).execute()
 
 
 def send_message(gmail_con, sender, to, subject, message_text):
@@ -109,7 +203,7 @@ def check_clean_events():
 
 
 def check_dispensed(gmail_con, db_conn):
-    mails, ids = get_mails(gmail_con, 'label:jvm-dispenseddrinkevent is:unread', 20)
+    mails, ids = get_mails_body(gmail_con, 'label:jvm-dispenseddrinkevent is:unread', 20)
 
     if 0 < len(mails):
         for mail in mails:
@@ -118,6 +212,19 @@ def check_dispensed(gmail_con, db_conn):
             # Add the DispensedDrinkEvent to db
             insert_event(db_conn, convert_formatted_timestamp(lines[1]), "DispensedDrinkEvent",
                          get_drink(lines[1]))
+
+            if get_last_event_by_type(db_conn, "Coffee_level"):
+                new_coffee_level = str(
+                    int(get_last_event_by_type(db_conn, "Coffee_level")[0][2]) - coffee_beans_usage[
+                        get_drink(lines[1])])
+            else:
+                new_coffee_level = "0"
+
+            # Insert new amount of coffee beans left
+            insert_event(db_conn, convert_formatted_timestamp(lines[1]) + 1, "Coffee_level", new_coffee_level)
+
+            # print(get_last_event_by_type(db_conn, "Coffee_level"))
+
         # Return the ids from mails read
         return ids
     else:
@@ -134,7 +241,7 @@ def check_failures():
 
 
 def check_ingredient_level(gmail_con):
-    mails, ids = get_mails(gmail_con, 'label:jvm-ingredientlevel  is:unread', 5)
+    mails, ids = get_mails_body(gmail_con, 'label:jvm-ingredientlevel  is:unread', 5)
 
     # Find all lines in the mails which are "under threshold" and from today
     # Send all such lines (no duplicates) as an email to the maintainers of JVM
@@ -156,10 +263,10 @@ def check_ingredient_level(gmail_con):
                     low_volumes.append(line)
 
         # Send a mail with low volumes
-        if 0 < len(low_volumes):
-            print("Ingredient level under threshold, sending mail")
-            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk',
-                         'Low volume', str(low_volumes).strip('[]'))
+        # if 0 < len(low_volumes):
+        #   print("Ingredient level under threshold, sending mail")
+        #   send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk',
+        #               'Low volume', str(low_volumes).strip('[]'))
 
         # todo
         # _thread.start_new_thread(wait_and_check_volume, (drinks, gmail_con))
@@ -178,62 +285,83 @@ def check_safety():
 
 
 def check_for_mails(gmail_con, db_conn):
-    mark_mail_unread = []
+    mails_read = []
     """
     print("Checking for new clean events")
     ids = check_clean_events()
     if 0 < len(ids):
-        mark_mail_unread.extend(ids)
+        mails_read.extend(ids)
     print("Done checking for new clean events")
     """
-    print("Checking for new dispensed")
-    ids = check_dispensed(gmail_con, db_conn)
-    if 0 < len(ids):
-        mark_mail_unread.extend(ids)
-    print("Done checking for new dispensed")
+    # print("Checking for new dispensed")
+    # ids = check_dispensed(gmail_con, db_conn)
+    # if 0 < len(ids):
+    #    mails_read.extend(ids)
+    # print("Done checking for new dispensed")
     """
     print("Checking for new EVADTS")
     ids = check_evadts()
     if 0 < len(ids):
-        mark_mail_unread.extend(ids)
+        mails_read.extend(ids)
     print("Done checking for new EVADTS")
 
     print("Checking for new failures")
     ids = check_failures()
     if 0 < len(ids):
-        mark_mail_unread.extend(ids)
+        mails_read.extend(ids)
     print("Done checking for new failures")
     """
-    print("Checking for new ingredient level")
-    ids = check_ingredient_level(gmail_con)
-    if 0 < len(ids):
-        mark_mail_unread.extend(ids)
-    print("Done checking for ingredient level")
+    # print("Checking for new ingredient level")
+    # ids = check_ingredient_level(gmail_con)
+    # if 0 < len(ids):
+    #    mails_read.extend(ids)
+    # print("Done checking for ingredient level")
     """
     print("Checking for new menu events")
     ids = check_menu()
     if 0 < len(ids):
-        mark_mail_unread.extend(ids)
+        mails_read.extend(ids)
     print("Done checking for new menu events")
 
     print("Checking for new safety mails")
     ids = check_safety()
     if 0 < len(ids):
-        mark_mail_unread.extend(ids)
-    print("Done checking for new safety mails")
+        mails_read.extend(ids)
+    print("Done checking for new safety mails")    
     """
 
     # Mark all read mails as unread
-    if 0 < len(mark_mail_unread):
-        gmail_con.users().messages().batchModify(userId='me', body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
-                                                                    'ids': mark_mail_unread}).execute()
+    mark_mails_unread(gmail_con, mails_read)
 
-    return len(mark_mail_unread)
+    return len(mails_read)
+
+
+def check_queries(gmail_con, db_conn):
+    senders, ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 5)
+
+    if 0 < len(senders):
+
+        message = "Status on ingredients: \n" \
+                  "Coffee: %sg \n" \
+                  "Milk: %sg \n" \
+                  "Sugar: %sg \n" \
+                  "Cacao: %sg \n" % (
+                      get_last_event_by_type(db_conn, "Coffee_level")[0][2],
+                      get_last_event_by_type(db_conn, "Milk_level")[0][2],
+                      get_last_event_by_type(db_conn, "Sugar_level")[0][2],
+                      get_last_event_by_type(db_conn, "Cacao_level")[0][2])
+
+        for sender in senders:
+            send_message(gmail_con, 'fklubjvmloss@gmail.com', sender, 'Ingredient-status', message)
+
+        mark_mails_unread(gmail_con, ids)
+
+    return len(ids)
 
 
 def main():
     gmail_con = setup_gmail_connection()
-
+    """
     # Check whether to resume using db or create a new one
     if os.path.exists(DB_FILE_NAME):
         db_conn = sqlite3.connect('jvm-loss.db')
@@ -245,9 +373,9 @@ def main():
                   f"{datetime.datetime.utcfromtimestamp(last_event[0][0]).strftime('%Y-%m-%d %H:%M:%S')}. "
                   f"Total number of events: {len(get_events(db_conn))}")
     else:
-        print("Database does not exist on disk, creating a new one")
-        db_conn = sqlite3.connect('jvm-loss.db')
-        create_db(db_conn, True, True)
+        print("Database does not exist on disk, creating a new one")"""
+    db_conn = sqlite3.connect('jvm-loss.db')
+    create_db(db_conn, True, True)
 
     while True:
         current_hour = datetime.datetime.now().hour
@@ -258,9 +386,14 @@ def main():
         # During working hours, check every 5 minutes, else wait an hour and check again
         if (7 <= current_hour <= 17) and (1 <= current_day <= 5):
 
-            print("Checking for new mails")
+            print("Checking for new mails from JVM")
             mails_read = check_for_mails(gmail_con, db_conn)
-            print(f"Done checking for mails, mails read: {mails_read}")
+            print(f"Done checking for new mails from JVM, mails read: {mails_read}")
+            pprint.pprint(get_events(db_conn))
+
+            print("Checking for new queries")
+            mails_read = check_queries(gmail_con, db_conn)
+            print(f"Done checking for new queries, queries processed: {mails_read}")
 
             print("Sleeping for 5 minutes\n")
             time.sleep(300)
