@@ -4,6 +4,7 @@ import unittest
 from pprint import pprint
 
 DISPENSE_TABLE_NAME = "jvm_dispense_events"
+INGREDIENT_LEVEL_TABLE_NAME = "jvm_ingredient_levels"
 DISPENSE_EVENT = "DispensedDrinkEvent"
 TEST_DB_PATH = "test-databases"
 
@@ -12,7 +13,7 @@ def create_db(conn: sqlite3.Connection, drop=False, create=False):
     cur = conn.cursor()
     if drop:
         cur.execute(f'DROP TABLE IF EXISTS {DISPENSE_TABLE_NAME}')
-        cur.execute(f'DROP TABLE IF EXISTS {"jvm_ingredient_levels"}')
+        cur.execute(f'DROP TABLE IF EXISTS {INGREDIENT_LEVEL_TABLE_NAME}')
 
     create_dispense_table_query = (f'CREATE TABLE {DISPENSE_TABLE_NAME} (\n'
                                    '                            timestamp INTEGER PRIMARY KEY,\n'
@@ -20,7 +21,7 @@ def create_db(conn: sqlite3.Connection, drop=False, create=False):
                                    '                            event_item TEXT NOT NULL)\n'
                                    '    ')
 
-    create_ingredient_level_table_query = (f'CREATE TABLE {"jvm_ingredient_levels"} (\n'
+    create_ingredient_level_table_query = (f'CREATE TABLE {INGREDIENT_LEVEL_TABLE_NAME} (\n'
                                            '                            timestamp INTEGER PRIMARY KEY,\n'
                                            '                            coffee_level INTEGER,\n'
                                            '                            milk_level INTEGER,\n'
@@ -69,7 +70,8 @@ def get_events_by_type_newer_than(conn: sqlite3.Connection, type: str, time: int
 
 def get_events_by_type_in_range(conn: sqlite3.Connection, type: str, lower_time: int, upper_time: int):
     cur = conn.cursor()
-    select_event_query = f'SELECT * FROM {DISPENSE_TABLE_NAME} WHERE "event_type"=? AND "timestamp" >=? AND "timestamp" <=?'
+    select_event_query = f'SELECT * FROM {DISPENSE_TABLE_NAME}' \
+                         f' WHERE "event_type"=? AND "timestamp" >=? AND "timestamp" <=?'
     # Note, parameters must be iterable
     cur.execute(select_event_query, (type, lower_time, upper_time))
     return cur.fetchall()
@@ -92,35 +94,40 @@ def get_events(conn: sqlite3.Connection):
 
 def get_last_event(conn: sqlite3.Connection):
     cur = conn.cursor()
-    select_last_query = f'SELECT * FROM    {DISPENSE_TABLE_NAME} WHERE   timestamp = (SELECT MAX(timestamp)  FROM {DISPENSE_TABLE_NAME});'
+    select_last_query = f'SELECT * FROM    {DISPENSE_TABLE_NAME} ' \
+                        f'WHERE   timestamp = (SELECT MAX(timestamp)  FROM {DISPENSE_TABLE_NAME});'
     cur.execute(select_last_query)
     return cur.fetchall()
 
 
 def get_last_event_by_type(conn: sqlite3.Connection, type: str):
     cur = conn.cursor()
-    select_last_query_by_type = f'SELECT * FROM {DISPENSE_TABLE_NAME} WHERE "event_type"=? ORDER BY timestamp DESC LIMIT 1'
+    select_last_query_by_type = f'SELECT * FROM {DISPENSE_TABLE_NAME} ' \
+                                f'WHERE "event_type"=? ORDER BY timestamp DESC LIMIT 1'
     cur.execute(select_last_query_by_type, (type,))
     return cur.fetchall()
 
 
 def get_last_event_by_type_older_than(conn: sqlite3.Connection, type: str, upper_time: int):
     cur = conn.cursor()
-    select_last_query_by_type_older_than = f'SELECT * FROM {DISPENSE_TABLE_NAME} WHERE "event_type"=? AND "timestamp" <=? ORDER BY timestamp DESC LIMIT 1'
+    select_last_query_by_type_older_than = f'SELECT * FROM {DISPENSE_TABLE_NAME} ' \
+                                           f'WHERE "event_type"=? AND "timestamp" <=? ORDER BY timestamp DESC LIMIT 1'
     cur.execute(select_last_query_by_type_older_than, (type, upper_time))
     return cur.fetchall()
 
 
 def insert_event_ingredient(conn: sqlite3.Connection, time: int, coffee: int, milk: int, sugar: int, cacao: int):
     cur = conn.cursor()
-    insert_query = f'INSERT INTO {"jvm_ingredient_levels"} (timestamp, coffee_level, milk_level, sugar_level, cacao_item) VALUES (?,?,?,?,?)'
+    insert_query = f'INSERT INTO {INGREDIENT_LEVEL_TABLE_NAME} ' \
+                   f'(timestamp, coffee_level, milk_level, sugar_level, cacao_item) VALUES (?,?,?,?,?)'
     cur.execute(insert_query, (time, coffee, milk, sugar, cacao))
     conn.commit()
 
 
 def get_last_event_ingredient(conn: sqlite3.Connection):
     cur = conn.cursor()
-    select_last_query = f'SELECT * FROM    {"jvm_ingredient_levels"} WHERE   timestamp = (SELECT MAX(timestamp)  FROM {"jvm_ingredient_levels"});'
+    select_last_query = f'SELECT * FROM {INGREDIENT_LEVEL_TABLE_NAME} ' \
+                        f'WHERE timestamp = (SELECT MAX(timestamp)  FROM {INGREDIENT_LEVEL_TABLE_NAME});'
     cur.execute(select_last_query)
     return cur.fetchall()
 

@@ -1,6 +1,4 @@
 from __future__ import print_function
-
-import pprint
 from email.mime.text import MIMEText
 import base64
 import pickle
@@ -22,9 +20,6 @@ from google.auth.transport.requests import Request
 SCOPES = ['https://mail.google.com/']
 DB_FILE_NAME = "jvm-loss.db"
 
-# todo should add more tables for each type of event, current solution is not very pretty,
-#  offsets when processing same mail twice, and 2 different events can not happen within the same second.
-#  Primary key should also be float, or a string
 # todo multithread to see if under threshold has been fixed
 # TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
 
@@ -54,6 +49,7 @@ coffee_beans_usage = {"Café au lait": 8,
                       "Chocolate": 8,
                       "Choco lux": 8,
                       "Espresso": 8,
+                      "Espresso with milk": 8,
                       "Filter kaffe": 8,
                       "Filter koffie": 8,
                       "Filter coffee milk": 8,
@@ -66,69 +62,72 @@ coffee_beans_usage = {"Café au lait": 8,
 
 milk_powder_usage = {"Café au lait": 8,
                      "Café au lait sugar": 8,
-                     "Café choco": 8,
+                     "Café choco": 0,
                      "Cappuccino": 8,
                      "Cappuccino sugar": 8,
-                     "Coffee": 8,
+                     "Coffee": 0,
                      "Coffee milk sugar": 8,
-                     "Coffee with sugar": 8,
+                     "Coffee with sugar": 0,
                      "Coffee with milk": 8,
-                     "Chocolate": 8,
-                     "Choco lux": 8,
-                     "Espresso": 8,
-                     "Filter kaffe": 8,
-                     "Filter koffie": 8,
+                     "Chocolate": 0,
+                     "Choco lux": 0,
+                     "Espresso": 0,
+                     "Espresso with milk": 8,
+                     "Filter kaffe": 0,
+                     "Filter koffie": 0,
                      "Filter coffee milk": 8,
                      "Filter coffee milk sugar": 8,
-                     "Filter coffee sugar": 8,
-                     "Hot water": 8,
+                     "Filter coffee sugar": 0,
+                     "Hot water": 0,
                      "Latte macchiato": 8,
                      "Latte macchiato sugar": 8,
                      "Wiener melange": 8}
 
-cacao_powder_usage = {"Café au lait": 8,
-                      "Café au lait sugar": 8,
+cacao_powder_usage = {"Café au lait": 0,
+                      "Café au lait sugar": 0,
                       "Café choco": 8,
-                      "Cappuccino": 8,
-                      "Cappuccino sugar": 8,
-                      "Coffee": 8,
-                      "Coffee milk sugar": 8,
-                      "Coffee with sugar": 8,
-                      "Coffee with milk": 8,
+                      "Cappuccino": 0,
+                      "Cappuccino sugar": 0,
+                      "Coffee": 0,
+                      "Coffee milk sugar": 0,
+                      "Coffee with sugar": 0,
+                      "Coffee with milk": 0,
                       "Chocolate": 8,
                       "Choco lux": 8,
-                      "Espresso": 8,
-                      "Filter kaffe": 8,
-                      "Filter koffie": 8,
-                      "Filter coffee milk": 8,
-                      "Filter coffee milk sugar": 8,
-                      "Filter coffee sugar": 8,
-                      "Hot water": 8,
-                      "Latte macchiato": 8,
-                      "Latte macchiato sugar": 8,
-                      "Wiener melange": 8}
+                      "Espresso": 0,
+                      "Espresso with milk": 0,
+                      "Filter kaffe": 0,
+                      "Filter koffie": 0,
+                      "Filter coffee milk": 0,
+                      "Filter coffee milk sugar": 0,
+                      "Filter coffee sugar": 0,
+                      "Hot water": 0,
+                      "Latte macchiato": 0,
+                      "Latte macchiato sugar": 0,
+                      "Wiener melange": 4}
 
-sugar_usage = {"Café au lait": 8,
-               "Café au lait sugar": 8,
-               "Café choco": 8,
-               "Cappuccino": 8,
-               "Cappuccino sugar": 8,
-               "Coffee": 8,
-               "Coffee milk sugar": 8,
-               "Coffee with sugar": 8,
-               "Coffee with milk": 8,
-               "Chocolate": 8,
-               "Choco lux": 8,
-               "Espresso": 8,
-               "Filter kaffe": 8,
-               "Filter koffie": 8,
-               "Filter coffee milk": 8,
-               "Filter coffee milk sugar": 8,
-               "Filter coffee sugar": 8,
-               "Hot water": 8,
-               "Latte macchiato": 8,
-               "Latte macchiato sugar": 8,
-               "Wiener melange": 8}
+sugar_usage = {"Café au lait": 0,
+               "Café au lait sugar": 4,
+               "Café choco": 0,
+               "Cappuccino": 0,
+               "Cappuccino sugar": 4,
+               "Coffee": 0,
+               "Coffee milk sugar": 4,
+               "Coffee with sugar": 4,
+               "Coffee with milk": 0,
+               "Chocolate": 0,
+               "Choco lux": 0,
+               "Espresso": 0,
+               "Espresso with milk": 0,
+               "Filter kaffe": 0,
+               "Filter koffie": 0,
+               "Filter coffee milk": 0,
+               "Filter coffee milk sugar": 4,
+               "Filter coffee sugar": 4,
+               "Hot water": 0,
+               "Latte macchiato": 0,
+               "Latte macchiato sugar": 4,
+               "Wiener melange": 4}
 
 
 # Sets up connection to gmail
@@ -321,7 +320,7 @@ def check_clean_events(gmail_con, db_conn):
 
     for mail in mails:
         first_line = mail.split("\n")[1]
-        insert_event(db_conn, convert_formatted_timestamp(first_line), "Clean Event", first_line)
+        insert_event(db_conn, convert_formatted_timestamp(first_line), "Clean", first_line)
     return len(mails)
 
 
@@ -495,7 +494,7 @@ def main():
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
         # During working hours, check every 5 minutes, else wait an hour and check again
-        if (7 <= current_hour <= 27) and (1 <= current_day <= 15):
+        if (7 <= current_hour <= 17) and (1 <= current_day <= 5):
 
             print("Checking for new mails from JVM")
             mails_read = check_for_mails(gmail_con, db_conn)
