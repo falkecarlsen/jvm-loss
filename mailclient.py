@@ -10,6 +10,7 @@ import re
 import time
 import calendar
 import _thread
+import sys
 from sqlite import create_db, insert_event, get_last_event, get_events
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -27,12 +28,19 @@ DB_FILE_NAME = "jvm-loss.db"
 
 # Sets up connection to gmail
 def setup_gmail_connection():
+    if 1 < len(sys.argv) and sys.argv[1] == 'test':
+        token_pickle = 'token_test.pickle'
+        credentials = 'credentials_test.json'
+    else:
+        token_pickle = 'token.pickle'
+        credentials = 'credentials.json'
+
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    if os.path.exists(token_pickle):
+        with open(token_pickle, 'rb') as token:
             creds = pickle.load(token)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -40,10 +48,10 @@ def setup_gmail_connection():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
+                credentials, SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('token.pickle', 'wb') as token:
+        with open(token_pickle, 'wb') as token:
             pickle.dump(creds, token)
 
     return build('gmail', 'v1', credentials=creds)
@@ -59,8 +67,8 @@ def get_mails(gmail_con, search, max_results):
 
         ids = [mail['id'] for mail in mails]
 
-        return [str(base64.urlsafe_b64decode(mail['payload']['parts'][0]['parts'][0]['body']['data'])) for mail in
-                mails], ids
+        return [str(base64.urlsafe_b64decode(mail['payload']['parts'][0]['parts'][0]['body']['data']).decode('utf-8'))
+                for mail in mails], ids
     else:
         return [], []
 
@@ -105,7 +113,7 @@ def check_dispensed(gmail_con, db_conn):
 
     if 0 < len(mails):
         for mail in mails:
-            lines = mail.split('\\n')
+            lines = mail.split("\n")
 
             # Add the DispensedDrinkEvent to db
             insert_event(db_conn, convert_formatted_timestamp(lines[1]), "DispensedDrinkEvent",
@@ -134,25 +142,24 @@ def check_ingredient_level(gmail_con):
         drinks = []
         low_volumes = []
         for mail in mails:
-            lines = mail.split('\\n')
+            lines = mail.split('\n')
             for line in lines:
                 if "is under threshold" not in line:
                     continue
                 elif datetime.datetime.now().isoweekday() is not datetime.datetime.fromtimestamp(
                         convert_formatted_timestamp(line)).isoweekday():
                     continue
-                elif re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0] in drinks:
+                elif re.findall("(?<=')[a-zA-Z ]+(?=')", line) in drinks:
                     continue
                 else:
-                    drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0])
+                    drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=')", line))
                     low_volumes.append(line)
 
         # Send a mail with low volumes
         if 0 < len(low_volumes):
             print("Ingredient level under threshold, sending mail")
-            send_message(gmail_con, 'fvejlb17@student.aau.dk', 'mmsa17@student.aau.dk',
-                         'Low volume',
-                         str(low_volumes).strip('[]').replace(",", "\n"))
+            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk',
+                         'Low volume', str(low_volumes).strip('[]'))
 
         # todo
         # _thread.start_new_thread(wait_and_check_volume, (drinks, gmail_con))
