@@ -12,8 +12,8 @@ import time
 import calendar
 import _thread
 import sys
-from sqlite import create_db, insert_event, get_last_event, get_events, get_last_event_by_type, \
-    get_last_event_by_type_older_than, get_events_by_type
+from sqlite import create_db, insert_event, get_last_event, get_events, get_last_event_ingredient, \
+    insert_event_ingredient
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -22,9 +22,10 @@ from google.auth.transport.requests import Request
 SCOPES = ['https://mail.google.com/']
 DB_FILE_NAME = "jvm-loss.db"
 
-# todo add more tables, or insert all kind of mails into existing table when mail is read
+# todo should add more tables for each type of event, current solution is not very pretty,
+#  offsets when processing same mail twice, and 2 different events can not happen within the same second.
+#  Primary key should also be float, or a string
 # todo multithread to see if under threshold has been fixed
-# todo add ingrediens level to db, and insert event each time an ingredient level is changed, either by dispenseddrink event, or other
 # TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
 
 MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
@@ -208,10 +209,7 @@ def get_all_mails_by_search(gmail_con, search):
 def setup_database():
     db_conn = sqlite3.connect('jvm-loss.db')
     create_db(db_conn, True, True)
-    insert_event(db_conn, 0, "Coffee_level", str(MAX_COFFEE))
-    insert_event(db_conn, 1, "Milk_level", str(MAX_MILK))
-    insert_event(db_conn, 2, "Sugar_level", str(MAX_SUGAR))
-    insert_event(db_conn, 3, "Cacao_level", str(MAX_CACAO))
+    insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CACAO)
 
     return db_conn
 
@@ -261,12 +259,33 @@ def get_drink(event):
 """
 
 
-def update_ingredient_level_by_dispense_event(db_conn, ingredient, dispense_time, dispense_drink):
-    new_ingredient_level = str(
-        int(get_last_event_by_type_older_than(db_conn, ingredient, dispense_time)[0][2]) -
-        coffee_beans_usage[dispense_drink])
+def update_ingredient_level(db_conn, timestamp, ingredient, amount):
+    status = get_last_event_ingredient(db_conn)[0]
 
-    insert_event(db_conn, dispense_time, ingredient, new_ingredient_level)
+    if ingredient == "coffee":
+        if status[1] < MAX_COFFEE or amount < 0:
+            insert_event_ingredient(db_conn, timestamp, min(status[1] + amount, MAX_COFFEE), status[2], status[3],
+                                    status[4])
+    elif ingredient == "milk":
+        if status[2] < MAX_MILK or amount < 0:
+            insert_event_ingredient(db_conn, timestamp, status[2], min(status[2] + amount, MAX_MILK), status[3],
+                                    status[4])
+    elif ingredient == "sugar":
+        if status[3] < MAX_SUGAR or amount < 0:
+            insert_event_ingredient(db_conn, timestamp, status[1], status[2], min(status[3] + amount, MAX_SUGAR),
+                                    status[4])
+    elif ingredient == "cacao":
+        if status[4] < MAX_CACAO or amount < 0:
+            insert_event_ingredient(db_conn, timestamp, status[1], status[2], status[3],
+                                    min(status[4] + amount, MAX_CACAO))
+
+
+def update_ingredient_level_by_dispense_event(db_conn, timestamp, drink):
+    status = get_last_event_ingredient(db_conn)[0]
+
+    insert_event_ingredient(db_conn, timestamp, status[1] - coffee_beans_usage[drink],
+                            status[2] - milk_powder_usage[drink], status[3] - sugar_usage[drink],
+                            status[4] - cacao_powder_usage[drink])
 
 
 def update_ingredient_levels(db_conn, mails):
@@ -275,29 +294,26 @@ def update_ingredient_levels(db_conn, mails):
     first_lines.sort(key=lambda x: convert_formatted_timestamp(x))
 
     for first_line in first_lines:
+        print(first_line)
         timestamp = convert_formatted_timestamp(first_line)
         if "DispensedDrinkEvent" in first_line:
             drink = get_drink(first_line)
 
-            update_ingredient_level_by_dispense_event(db_conn, "Coffee_level", timestamp + 1, drink)
-            update_ingredient_level_by_dispense_event(db_conn, "Milk_level", timestamp + 2, drink)
-            update_ingredient_level_by_dispense_event(db_conn, "Sugar_level", timestamp + 3, drink)
-            update_ingredient_level_by_dispense_event(db_conn, "Cacao_level", timestamp + 4, drink)
+            update_ingredient_level_by_dispense_event(db_conn, timestamp, drink)
+
         elif "Menu parametre" in first_line and re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line):
             amount_filled = int(re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line)[0])
             if amount_filled != 2400:
-                previous_amount_of_coffee = int(
-                    get_last_event_by_type_older_than(db_conn, "Coffee_level", timestamp)[0][2])
-                insert_event(db_conn, timestamp + 1, "Coffee_level", str(previous_amount_of_coffee + amount_filled))
+                update_ingredient_level(db_conn, timestamp, "coffee", amount_filled)
         elif "IngredientLevel" in first_line:
             if "Coffee Beans\' is filled." in first_line:
-                insert_event(db_conn, timestamp + 1, "Coffee_level", str(MAX_COFFEE))
+                update_ingredient_level(db_conn, timestamp, "coffee", MAX_COFFEE)
             if "Chocolate\' is filled." in first_line:
-                insert_event(db_conn, timestamp + 1, "Cacao_level", str(MAX_CACAO))
+                update_ingredient_level(db_conn, timestamp, "cacao", MAX_CACAO)
             if "Sugar\' is filled." in first_line:
-                insert_event(db_conn, timestamp + 1, "Sugar_level", str(MAX_SUGAR))
+                update_ingredient_level(db_conn, timestamp, "sugar", MAX_SUGAR)
             if "Milk product\' is filled." in first_line:
-                insert_event(db_conn, timestamp + 1, "Milk_level", str(MAX_MILK))
+                update_ingredient_level(db_conn, timestamp, "milk", MAX_MILK)
 
 
 def check_clean_events(gmail_con, db_conn):
@@ -328,6 +344,8 @@ def check_evadts(gmail_con, db_conn):
 def check_failures(gmail_con, db_conn):
     mails = get_all_mails_by_search(gmail_con, 'label:jvm-failures is:unread')
 
+    # Offset needed because seconds are not present in failure mail,
+    # and a failure can be resolves the same minute that it appears
     offset = 0
     for mail in mails:
         first_line = mail.split("\n")[1]
@@ -375,7 +393,7 @@ def check_menu(gmail_con, db_conn):
 
     for mail in mails:
         first_line = mail.split("\n")[1]
-        insert_event(db_conn, convert_formatted_timestamp(first_line), "Failure", first_line)
+        insert_event(db_conn, convert_formatted_timestamp(first_line), "Menu", first_line)
     return mails
 
 
@@ -429,19 +447,21 @@ def check_queries(gmail_con, db_conn):
 
     if 0 < len(senders):
 
+        status = get_last_event_ingredient(db_conn)[0]
+
         message = "Status on ingredients: \n" \
                   "Coffee: %sg (%.1f%%)\n" \
                   "Milk: %sg (%.1f%%)\n" \
                   "Sugar: %sg (%.1f%%)\n" \
                   "Cacao: %sg (%.1f%%)\n" % (
-                      get_last_event_by_type(db_conn, "Coffee_level")[0][2],
-                      (float(get_last_event_by_type(db_conn, "Coffee_level")[0][2]) / float(MAX_COFFEE)) * 100.0,
-                      get_last_event_by_type(db_conn, "Milk_level")[0][2],
-                      (float(get_last_event_by_type(db_conn, "Milk_level")[0][2]) / float(MAX_MILK)) * 100.0,
-                      get_last_event_by_type(db_conn, "Sugar_level")[0][2],
-                      (float(get_last_event_by_type(db_conn, "Sugar_level")[0][2]) / float(MAX_SUGAR)) * 100.0,
-                      get_last_event_by_type(db_conn, "Cacao_level")[0][2],
-                      (float(get_last_event_by_type(db_conn, "Cacao_level")[0][2]) / float(MAX_CACAO)) * 100.0)
+                      status[1],
+                      (float(status[1]) / float(MAX_COFFEE)) * 100.0,
+                      status[2],
+                      (float(status[2]) / float(MAX_MILK)) * 100.0,
+                      status[3],
+                      (float(status[3]) / float(MAX_SUGAR)) * 100.0,
+                      status[4],
+                      (float(status[4]) / float(MAX_CACAO)) * 100.0)
 
         for sender in senders:
             send_message(gmail_con, JVM_MAIL, sender, 'Ingredient-status', message)
@@ -475,7 +495,7 @@ def main():
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
         # During working hours, check every 5 minutes, else wait an hour and check again
-        if (7 <= current_hour <= 17) and (1 <= current_day <= 5):
+        if (7 <= current_hour <= 27) and (1 <= current_day <= 15):
 
             print("Checking for new mails from JVM")
             mails_read = check_for_mails(gmail_con, db_conn)
