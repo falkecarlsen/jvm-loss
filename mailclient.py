@@ -9,6 +9,7 @@ import datetime
 import re
 import time
 import calendar
+import _thread
 from sqlite import create_db, insert_event, get_last_event, get_events
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -18,6 +19,11 @@ from google.auth.transport.requests import Request
 SCOPES = ['https://mail.google.com/']
 DB_FILE_NAME = "jvm-loss.db"
 
+
+# todo add more tables, or insert all kind of mails into existing table when mail is read
+# todo multithread to see if under threshold has been fixed
+# todo add ingrediens level to db, and insert event each time an ingredient level is changed, either by dispenseddrink event, or other
+# todo query by sending mail to jvmloss or do slack bot
 
 # Sets up connection to gmail
 def setup_gmail_connection():
@@ -43,6 +49,22 @@ def setup_gmail_connection():
     return build('gmail', 'v1', credentials=creds)
 
 
+# Returns body of mails (only the text part) and the id of mails
+def get_mails(gmail_con, search, max_results):
+    inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=max_results).execute()
+
+    if 0 < inbox["resultSizeEstimate"]:
+        mails = [gmail_con.users().messages().get(userId="me", id=msg['id'], format="full").execute() for msg in
+                 inbox["messages"]]
+
+        ids = [mail['id'] for mail in mails]
+
+        return [str(base64.urlsafe_b64decode(mail['payload']['parts'][0]['parts'][0]['body']['data'])) for mail in
+                mails], ids
+    else:
+        return [], []
+
+
 def send_message(gmail_con, sender, to, subject, message_text):
     message = MIMEText(message_text)
     message['to'] = to
@@ -65,73 +87,141 @@ def convert_formatted_timestamp(time):
 
 # Return the name of the first drink
 def get_drink(event):
-    return re.findall("(?<=;)[a-zA-Z é]*(?=&)", event)[0]
+    return re.findall("(?<=\")[a-zA-Z é]*(?=\" \")", event)[0]
 
 
-def add_new_events(gmail_con, db_conn, search):
-    # Get all mails that match the search
-    inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=20).execute()
+""" def wait_and_check_volume(drink, gmail_con):
+    # Wait 2 hours
+    time.sleep(7200)
+"""
 
-    # Gets information from mails in "minimal" format, as only a snippet of the mail is needed
-    # (recent event is in start of mail)
-    if 0 < inbox["resultSizeEstimate"]:
-        mails = [gmail_con.users().messages().get(userId="me", id=msg['id'], format="minimal").execute() for msg in
-                 inbox["messages"]]
 
-        # Array to hold ids of mails to remove "unread"- label
-        idsToModify = []
+def check_clean_events():
+    pass
 
+
+def check_dispensed(gmail_con, db_conn):
+    mails, ids = get_mails(gmail_con, 'label:jvm-dispenseddrinkevent is:unread', 20)
+
+    if 0 < len(mails):
         for mail in mails:
+            lines = mail.split('\\n')
+
             # Add the DispensedDrinkEvent to db
-            insert_event(db_conn, convert_formatted_timestamp(mail["snippet"]), "DispensedDrinkEvent",
-                         get_drink(mail["snippet"]))
-
-            # Append id to array
-            idsToModify.append(mail['id'])
-
-        # Remove "unread"- label on all mails in array
-        gmail_con.users().messages().batchModify(userId='me',
-                                                 body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
-                                                       'ids': idsToModify}).execute()
+            insert_event(db_conn, convert_formatted_timestamp(lines[1]), "DispensedDrinkEvent",
+                         get_drink(lines[1]))
+        # Return the ids from mails read
+        return ids
     else:
-        print(f"No new '{search}' since last check")
+        # Return empty list if no mails was read
+        return []
 
 
-def check_under_threshold(gmail_con):
-    # TODO code looks a lot like 'addNewEvents' function, could perhaps abstract some logic
-    inbox = gmail_con.users().messages().list(userId='me', q='label:jvm-ingredientlevel  is:unread',
-                                              maxResults=1).execute()
+def check_evadts():
+    pass
 
-    if 0 < inbox["resultSizeEstimate"]:
-        email = gmail_con.users().messages().get(userId='me', id=inbox["messages"][0]['id'], format='full').execute()
-        lines_in_mail = str(base64.urlsafe_b64decode(email['payload']['parts'][0]['parts'][0]['body']['data'])).split(
-            '\\n')
 
+def check_failures():
+    pass
+
+
+def check_ingredient_level(gmail_con):
+    mails, ids = get_mails(gmail_con, 'label:jvm-ingredientlevel  is:unread', 5)
+
+    # Find all lines in the mails which are "under threshold" and from today
+    # Send all such lines (no duplicates) as an email to the maintainers of JVM
+    if 0 < len(mails):
         drinks = []
         low_volumes = []
-        for line in lines_in_mail:
-            if "is under threshold" not in line:
-                continue
-            elif datetime.datetime.now().isoweekday() is not datetime.datetime.fromtimestamp(
-                    convert_formatted_timestamp(line)).isoweekday():
-                continue
-            elif re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0] in drinks:
-                continue
-            else:
-                drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0])
-                low_volumes.append(line)
+        for mail in mails:
+            lines = mail.split('\\n')
+            for line in lines:
+                if "is under threshold" not in line:
+                    continue
+                elif datetime.datetime.now().isoweekday() is not datetime.datetime.fromtimestamp(
+                        convert_formatted_timestamp(line)).isoweekday():
+                    continue
+                elif re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0] in drinks:
+                    continue
+                else:
+                    drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=\\\\)", line)[0])
+                    low_volumes.append(line)
 
-        # TODO could perhaps just forward the mail, instead of creating a new one
+        # Send a mail with low volumes
         if 0 < len(low_volumes):
             print("Ingredient level under threshold, sending mail")
-            send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mathiasmehlsoerensen@gmail.com, fvejlb@student.aau.dk',
+            send_message(gmail_con, 'fvejlb17@student.aau.dk', 'mmsa17@student.aau.dk',
                          'Low volume',
                          str(low_volumes).strip('[]').replace(",", "\n"))
-            gmail_con.users().messages().modify(userId='me', id=inbox["messages"][0]['id'],
-                                                body={'removeLabelIds': ['UNREAD'], 'addLabelIds': []}).execute()
 
+        # todo
+        # _thread.start_new_thread(wait_and_check_volume, (drinks, gmail_con))
+
+        return ids
     else:
-        print("Ingredient level above threshold")
+        return []
+
+
+def check_menu():
+    pass
+
+
+def check_safety():
+    pass
+
+
+def check_for_mails(gmail_con, db_conn):
+    mark_mail_unread = []
+    """
+    print("Checking for new clean events")
+    ids = check_clean_events()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
+    print("Done checking for new clean events")
+    """
+    print("Checking for new dispensed")
+    ids = check_dispensed(gmail_con, db_conn)
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
+    print("Done checking for new dispensed")
+    """
+    print("Checking for new EVADTS")
+    ids = check_evadts()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
+    print("Done checking for new EVADTS")
+
+    print("Checking for new failures")
+    ids = check_failures()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
+    print("Done checking for new failures")
+    """
+    print("Checking for new ingredient level")
+    ids = check_ingredient_level(gmail_con)
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
+    print("Done checking for ingredient level")
+    """
+    print("Checking for new menu events")
+    ids = check_menu()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
+    print("Done checking for new menu events")
+
+    print("Checking for new safety mails")
+    ids = check_safety()
+    if 0 < len(ids):
+        mark_mail_unread.extend(ids)
+    print("Done checking for new safety mails")
+    """
+
+    # Mark all read mails as unread
+    if 0 < len(mark_mail_unread):
+        gmail_con.users().messages().batchModify(userId='me', body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
+                                                                    'ids': mark_mail_unread}).execute()
+
+    return len(mark_mail_unread)
 
 
 def main():
@@ -152,8 +242,6 @@ def main():
         db_conn = sqlite3.connect('jvm-loss.db')
         create_db(db_conn, True, True)
 
-    search = 'label:jvm-dispenseddrinkevent is:unread'
-
     while True:
         current_hour = datetime.datetime.now().hour
         current_day = datetime.datetime.now().isoweekday()
@@ -161,15 +249,11 @@ def main():
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
         # During working hours, check every 5 minutes, else wait an hour and check again
-        if (7 <= current_hour <= 24) and (1 <= current_day <= 5):
+        if (7 <= current_hour <= 17) and (1 <= current_day <= 5):
 
-            print(f"Checking for new '{search}'")
-            add_new_events(gmail_con, db_conn, search)
-            print(f"Done checking for new '{search}'")
-
-            print("Checking for low ingredients")
-            check_under_threshold(gmail_con)
-            print("Done checking for low ingredients")
+            print("Checking for new mails")
+            mails_read = check_for_mails(gmail_con, db_conn)
+            print(f"Done checking for mails, mails read: {mails_read}")
 
             print("Sleeping for 5 minutes\n")
             time.sleep(300)
