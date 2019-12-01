@@ -30,6 +30,14 @@ DB_FILE_NAME = "jvm-loss.db"
 
 # Todo QA this list, both with names (i think too many are added here, and with incorrect translations) and number
 
+MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
+BACKUP_MAINTAINER_MAILS = ''
+
+if 1 < len(sys.argv) and sys.argv[1] == 'test':
+    JVM_MAIL = 'fklubjvmloss@gmail.com'
+else:
+    JVM_MAIL = 'fklubjvmlosstest@gmail.com'
+
 MAX_COFFEE = 2400
 MAX_MILK = 1800
 MAX_SUGAR = 2400
@@ -391,7 +399,7 @@ def check_ingredient_level(gmail_con):
     # Send a mail with low volumes
     if 0 < len(low_volumes):
         print("Ingredient level under threshold, sending mail")
-        send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk',
+        send_message(gmail_con, JVM_MAIL, MAINTAINER_MAILS,
                      'Low volume', str(low_volumes).strip('[]'))
 
     # todo
@@ -454,7 +462,7 @@ def check_for_mails(gmail_con, db_conn):
 
 
 def check_queries(gmail_con, db_conn):
-    senders, ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 5)
+    senders, ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 100)
 
     if 0 < len(senders):
 
@@ -473,7 +481,7 @@ def check_queries(gmail_con, db_conn):
                       (float(get_last_event_by_type(db_conn, "Cacao_level")[0][2]) / float(MAX_CACAO)) * 100.0)
 
         for sender in senders:
-            send_message(gmail_con, 'fklubjvmloss@gmail.com', sender, 'Ingredient-status', message)
+            send_message(gmail_con, JVM_MAIL, sender, 'Ingredient-status', message)
 
         mark_mails_unread(gmail_con, ids)
 
