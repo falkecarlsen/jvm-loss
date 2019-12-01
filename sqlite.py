@@ -89,10 +89,16 @@ def get_last_event(conn: sqlite3.Connection):
 
 def get_last_event_by_type(conn: sqlite3.Connection, type: str):
     cur = conn.cursor()
-    select_last_query_by_type = f'SELECT * FROM {TABLE_NAME} WHERE "event_type"=? ORDER BY timestamp ASC LIMIT 1'
+    select_last_query_by_type = f'SELECT * FROM {TABLE_NAME} WHERE "event_type"=? ORDER BY timestamp DESC LIMIT 1'
     cur.execute(select_last_query_by_type, (type,))
     return cur.fetchall()
 
+
+def get_last_event_by_type_older_than(conn: sqlite3.Connection, type: str, upper_time: int):
+    cur = conn.cursor()
+    select_last_query_by_type_older_than = f'SELECT * FROM {TABLE_NAME} WHERE "event_type"=? AND "timestamp" <=? ORDER BY timestamp DESC LIMIT 1'
+    cur.execute(select_last_query_by_type_older_than, (type,  upper_time))
+    return cur.fetchall()
 
 class TestDBFunctions(unittest.TestCase):
     def setUp(self) -> None:

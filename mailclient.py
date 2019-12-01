@@ -392,7 +392,7 @@ def check_ingredient_level(gmail_con):
     if 0 < len(low_volumes):
         print("Ingredient level under threshold, sending mail")
         send_message(gmail_con, 'fklubjvmloss@gmail.com', 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk',
-                 'Low volume', str(low_volumes).strip('[]'))
+                     'Low volume', str(low_volumes).strip('[]'))
 
     # todo
     # _thread.start_new_thread(wait_and_check_volume, (drinks, gmail_con))
