@@ -27,9 +27,6 @@ DB_FILE_NAME = "jvm-loss.db"
 # todo add ingrediens level to db, and insert event each time an ingredient level is changed, either by dispenseddrink event, or other
 # TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
 
-
-# Todo QA this list, both with names (i think too many are added here, and with incorrect translations) and number
-
 MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
 BACKUP_MAINTAINER_MAILS = ''
 
@@ -43,129 +40,94 @@ MAX_MILK = 1800
 MAX_SUGAR = 2400
 MAX_CACAO = 2200
 
-coffee_beans_usage = {"Café choco": 8,
-                      "Cappuccino": 8,
+# Todo QA these dictionaries
+coffee_beans_usage = {"Café au lait": 8,
                       "Café au lait sugar": 8,
-                      "Choco lux": 8,
-                      "Chocolate": 0,
+                      "Café choco": 8,
+                      "Cappuccino": 8,
+                      "Cappuccino sugar": 8,
                       "Coffee": 8,
+                      "Coffee milk sugar": 8,
                       "Coffee with sugar": 8,
+                      "Coffee with milk": 8,
+                      "Chocolate": 8,
+                      "Choco lux": 8,
                       "Espresso": 8,
                       "Filter kaffe": 8,
+                      "Filter koffie": 8,
                       "Filter coffee milk": 8,
+                      "Filter coffee milk sugar": 8,
+                      "Filter coffee sugar": 8,
                       "Hot water": 8,
-                      "Wiener melange": 8,
-
-                      # todo check if these is correct
-                      "Lungo": 8,
-                      "Lungo with sugar": 8,
-                      "Lungo with milk": 8,
-                      "Lungo with sugar and milk": 8,
-                      "Espresso with sugar": 8,
-                      "Cappuccino with sugar": 8,
-                      "Espresso with milk": 8,
-                      "hot cacao": 8,
-                      "Café au lait": 8,
                       "Latte macchiato": 8,
-                      "Espresso with sugar and milk": 8,
-                      "Hot cacao with milk": 8,
-                      "Café au lait with sugar": 8,
-                      "Latte macchiato with sugar": 8,
-                      "Coffee with milk": 8,
-                      "Coffee with sugar and milk": 8}
+                      "Latte macchiato sugar": 8,
+                      "Wiener melange": 8}
 
-milk_powder_usage = {"Café choco": 8,
-                     "Cappuccino": 8,
+milk_powder_usage = {"Café au lait": 8,
                      "Café au lait sugar": 8,
-                     "Choco lux": 8,
-                     "Chocolate": 0,
+                     "Café choco": 8,
+                     "Cappuccino": 8,
+                     "Cappuccino sugar": 8,
                      "Coffee": 8,
+                     "Coffee milk sugar": 8,
                      "Coffee with sugar": 8,
+                     "Coffee with milk": 8,
+                     "Chocolate": 8,
+                     "Choco lux": 8,
                      "Espresso": 8,
                      "Filter kaffe": 8,
+                     "Filter koffie": 8,
                      "Filter coffee milk": 8,
+                     "Filter coffee milk sugar": 8,
+                     "Filter coffee sugar": 8,
                      "Hot water": 8,
-                     "Wiener melange": 8,
-
-                     # todo check if these is correct
-                     "Lungo": 8,
-                     "Lungo with sugar": 8,
-                     "Lungo with milk": 8,
-                     "Lungo with sugar and milk": 8,
-                     "Espresso with sugar": 8,
-                     "Cappuccino with sugar": 8,
-                     "Espresso with milk": 8,
-                     "hot cacao": 8,
-                     "Café au lait": 8,
                      "Latte macchiato": 8,
-                     "Espresso with sugar and milk": 8,
-                     "Hot cacao with milk": 8,
-                     "Café au lait with sugar": 8,
-                     "Latte macchiato with sugar": 8,
-                     "Coffee with milk": 8,
-                     "Coffee with sugar and milk": 8}
+                     "Latte macchiato sugar": 8,
+                     "Wiener melange": 8}
 
-cacao_powder_usage = {"Café choco": 8,
-                      "Cappuccino": 8,
+cacao_powder_usage = {"Café au lait": 8,
                       "Café au lait sugar": 8,
-                      "Choco lux": 8,
-                      "Chocolate": 0,
+                      "Café choco": 8,
+                      "Cappuccino": 8,
+                      "Cappuccino sugar": 8,
                       "Coffee": 8,
+                      "Coffee milk sugar": 8,
                       "Coffee with sugar": 8,
+                      "Coffee with milk": 8,
+                      "Chocolate": 8,
+                      "Choco lux": 8,
                       "Espresso": 8,
                       "Filter kaffe": 8,
+                      "Filter koffie": 8,
                       "Filter coffee milk": 8,
+                      "Filter coffee milk sugar": 8,
+                      "Filter coffee sugar": 8,
                       "Hot water": 8,
-                      "Wiener melange": 8,
-
-                      # todo check if these is correct
-                      "Lungo": 8,
-                      "Lungo with sugar": 8,
-                      "Lungo with milk": 8,
-                      "Lungo with sugar and milk": 8,
-                      "Espresso with sugar": 8,
-                      "Cappuccino with sugar": 8,
-                      "Espresso with milk": 8,
-                      "hot cacao": 8,
-                      "Café au lait": 8,
                       "Latte macchiato": 8,
-                      "Espresso with sugar and milk": 8,
-                      "Hot cacao with milk": 8,
-                      "Café au lait with sugar": 8,
-                      "Latte macchiato with sugar": 8,
-                      "Coffee with milk": 8,
-                      "Coffee with sugar and milk": 8}
+                      "Latte macchiato sugar": 8,
+                      "Wiener melange": 8}
 
-sugar_usage = {"Café choco": 8,
-               "Cappuccino": 8,
+sugar_usage = {"Café au lait": 8,
                "Café au lait sugar": 8,
-               "Choco lux": 8,
-               "Chocolate": 0,
+               "Café choco": 8,
+               "Cappuccino": 8,
+               "Cappuccino sugar": 8,
                "Coffee": 8,
+               "Coffee milk sugar": 8,
                "Coffee with sugar": 8,
+               "Coffee with milk": 8,
+               "Chocolate": 8,
+               "Choco lux": 8,
                "Espresso": 8,
                "Filter kaffe": 8,
+               "Filter koffie": 8,
                "Filter coffee milk": 8,
+               "Filter coffee milk sugar": 8,
+               "Filter coffee sugar": 8,
                "Hot water": 8,
-               "Wiener melange": 8,
-
-               # todo check if these is correct
-               "Lungo": 8,
-               "Lungo with sugar": 8,
-               "Lungo with milk": 8,
-               "Lungo with sugar and milk": 8,
-               "Espresso with sugar": 8,
-               "Cappuccino with sugar": 8,
-               "Espresso with milk": 8,
-               "hot cacao": 8,
-               "Café au lait": 8,
                "Latte macchiato": 8,
-               "Espresso with sugar and milk": 8,
-               "Hot cacao with milk": 8,
-               "Café au lait with sugar": 8,
-               "Latte macchiato with sugar": 8,
-               "Coffee with milk": 8,
-               "Coffee with sugar and milk": 8}
+               "Latte macchiato sugar": 8,
+               "Wiener melange": 8}
 
 
 # Sets up connection to gmail
@@ -277,7 +239,7 @@ def convert_formatted_timestamp(time):
 
     # Convert to unix timestamp in correct order. Might be a better solution.
     # (mail is in DD/MM/YY, function is in (YY/MM/DD, therefore the weird indexes)
-    return int(datetime.datetime(array[2], array[1], array[0], array[3], array[4], array[5]).timestamp())
+    return int(datetime.datetime(array[2], array[1], array[0], array[3], array[4], array[5], array[6]).timestamp())
 
 
 def convert_formatted_timestamp_failure(time):
@@ -321,12 +283,12 @@ def update_ingredient_levels(db_conn, mails):
             update_ingredient_level_by_dispense_event(db_conn, "Milk_level", timestamp + 2, drink)
             update_ingredient_level_by_dispense_event(db_conn, "Sugar_level", timestamp + 3, drink)
             update_ingredient_level_by_dispense_event(db_conn, "Cacao_level", timestamp + 4, drink)
-        elif "Menu parametre" in first_line:
-            if re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line):
-                amount_filled = int(re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line)[0])
-                if amount_filled != 2400:
-                    previous_amount_of_coffee = get_last_event_by_type_older_than(db_conn, "Coffee_level", timestamp)
-                    insert_event(db_conn, timestamp + 1, "Coffee_level", str(previous_amount_of_coffee + amount_filled))
+        elif "Menu parametre" in first_line and re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line):
+            amount_filled = int(re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line)[0])
+            if amount_filled != 2400:
+                previous_amount_of_coffee = int(
+                    get_last_event_by_type_older_than(db_conn, "Coffee_level", timestamp)[0][2])
+                insert_event(db_conn, timestamp + 1, "Coffee_level", str(previous_amount_of_coffee + amount_filled))
         elif "IngredientLevel" in first_line:
             if "Coffee Beans\' is filled." in first_line:
                 insert_event(db_conn, timestamp + 1, "Coffee_level", str(MAX_COFFEE))
@@ -462,6 +424,7 @@ def check_for_mails(gmail_con, db_conn):
 
 
 def check_queries(gmail_con, db_conn):
+    # TODO only send mail if the query was from today
     senders, ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 100)
 
     if 0 < len(senders):
