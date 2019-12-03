@@ -116,7 +116,23 @@ def get_last_event_by_type_older_than(conn: sqlite3.Connection, type: str, upper
     return cur.fetchall()
 
 
-def insert_event_ingredient(conn: sqlite3.Connection, time: int, coffee: float, milk: float, sugar: float, cacao: float):
+def get_last_event_by_type_newer_than(conn: sqlite3.Connection, type: str, lower_time: int):
+    cur = conn.cursor()
+    select_last_query_by_type_older_than = f'SELECT * FROM {DISPENSE_TABLE_NAME} ' \
+                                           f'WHERE "event_type"=? AND "timestamp" >=? ORDER BY timestamp DESC LIMIT 1'
+    cur.execute(select_last_query_by_type_older_than, (type, lower_time))
+    return cur.fetchall()
+
+
+def get_events_ingredient(conn: sqlite3.Connection):
+    cur = conn.cursor()
+    select_query = f'SELECT * FROM {INGREDIENT_LEVEL_TABLE_NAME}'
+    cur.execute(select_query)
+    return cur.fetchall()
+
+
+def insert_event_ingredient(conn: sqlite3.Connection, time: int, coffee: float, milk: float, sugar: float,
+                            cacao: float):
     cur = conn.cursor()
     insert_query = f'INSERT INTO {INGREDIENT_LEVEL_TABLE_NAME} ' \
                    f'(timestamp, coffee_level, milk_level, sugar_level, cacao_item) VALUES (?,?,?,?,?)'
