@@ -1,4 +1,6 @@
 from __future__ import print_function
+
+import pprint
 from email.mime.text import MIMEText
 import base64
 import pickle
@@ -26,7 +28,7 @@ DB_FILE_NAME = "jvm-loss.db"
 # todo multithread to see if under threshold has been fixed
 # TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
 
-MAINTAINER_MAILS = 'mmsa17@student.aau.dk'
+MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
 BACKUP_MAINTAINER_MAILS = ''
 
 if 1 < len(sys.argv) and sys.argv[1] == 'test':
@@ -212,7 +214,7 @@ def update_ingredient_levels(db_conn, mails):
         elif "Menu parametre" in first_line and re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line):
             amount_filled = int(re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line)[0])
             if amount_filled != 2400:
-                update_ingredient_level(db_conn, timestamp, "coffee", amount_filled)
+                update_ingredient_level(db_conn, timestamp, "coffee", float(amount_filled))
         elif "IngredientLevel" in first_line:
             if "Coffee Beans\' is filled." in first_line:
                 update_ingredient_level(db_conn, timestamp, "coffee", MAX_COFFEE)
@@ -359,10 +361,10 @@ def check_queries(gmail_con, db_conn):
         status = get_last_event_ingredient(db_conn)[0]
 
         message = "Status on ingredients: \n" \
-                  "Coffee: %sg (%.1f%%)\n" \
-                  "Milk: %sg (%.1f%%)\n" \
-                  "Sugar: %sg (%.1f%%)\n" \
-                  "Chocolate: %sg (%.1f%%)\n" % (
+                  "Coffee: %.1fg (%.1f%%)\n" \
+                  "Milk: %.1fg (%.1f%%)\n" \
+                  "Sugar: %.1fg (%.1f%%)\n" \
+                  "Chocolate: %.1fg (%.1f%%)\n" % (
                       status[1],
                       (status[1] / MAX_COFFEE) * 100.0,
                       status[2],
@@ -395,7 +397,7 @@ def main():
                   f"Total number of events: {len(get_events(db_conn))}")
     else:
         print("Database does not exist on disk, creating a new one")
-    db_conn = setup_database()
+        db_conn = setup_database()
 
     while True:
         current_hour = datetime.datetime.now().hour
