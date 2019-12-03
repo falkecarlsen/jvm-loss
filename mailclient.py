@@ -10,6 +10,9 @@ import time
 import calendar
 import _thread
 import sys
+
+from dictionaries import coffee_beans_usage, sugar_usage, milk_powder_usage, chocolate_usage, MAX_COFFEE, MAX_MILK, \
+    MAX_SUGAR, MAX_CHOCOLATE
 from sqlite import create_db, insert_event, get_last_event, get_events, get_last_event_ingredient, \
     insert_event_ingredient
 from googleapiclient.discovery import build
@@ -23,131 +26,13 @@ DB_FILE_NAME = "jvm-loss.db"
 # todo multithread to see if under threshold has been fixed
 # TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
 
-MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
+MAINTAINER_MAILS = 'mmsa17@student.aau.dk'
 BACKUP_MAINTAINER_MAILS = ''
 
 if 1 < len(sys.argv) and sys.argv[1] == 'test':
     JVM_MAIL = 'fklubjvmloss@gmail.com'
 else:
     JVM_MAIL = 'fklubjvmlosstest@gmail.com'
-
-MAX_COFFEE = 2400
-MAX_MILK = 1800
-MAX_SUGAR = 2400
-MAX_CACAO = 2200
-
-# Todo QA these dictionaries
-coffee_beans_usage = {"Café au lait": 9.6,
-                      "Café au lait sugar": 9.6,
-                      "Café choco": 9.6,
-                      "Cappuccino": 9.6,
-                      "Cappuccino sugar": 9.6,
-                      "Espresso": 10.8,
-                      "Espresso with milk": 10.8,
-                      "Espresso with sugar": 10.8,
-                      "Espresso milk sugar": 10.8,
-                      "Filter coffee": 9.6,
-                      "Filter coffee milk": 9.6,
-                      "Filter coffee sugar": 9.6,
-                      "Filter coffee milk sugar": 9.6,
-                      "Latte macchiato": 9.6,
-                      "Latte macchiato sugar": 9.6,
-                      "Coffee": 9.6,
-                      "Coffee with milk": 9.6,
-                      "Coffee milk sugar": 9.6,
-                      "Chocolate": 0.0,
-                      "Choco lux": 0.0,
-                      "Hot water": 0.0,
-                      "Wiener melange": 9.6,
-
-                      # Should not be there
-                      "Coffee with sugar": 8,
-                      "Filter kaffe": 8,
-                      "Filter koffie": 8}
-
-milk_powder_usage = {"Café au lait": 9.6,
-                     "Café au lait sugar": 9.6,
-                     "Café choco": 9.6,
-                     "Cappuccino": 9.6,
-                     "Cappuccino sugar": 9.6,
-                     "Espresso": 10.8,
-                     "Espresso with milk": 10.8,
-                     "Espresso with sugar": 10.8,
-                     "Espresso milk sugar": 10.8,
-                     "Filter coffee": 9.6,
-                     "Filter coffee milk": 9.6,
-                     "Filter coffee sugar": 9.6,
-                     "Filter coffee milk sugar": 9.6,
-                     "Latte macchiato": 9.6,
-                     "Latte macchiato sugar": 9.6,
-                     "Coffee": 9.6,
-                     "Coffee with milk": 9.6,
-                     "Coffee milk sugar": 9.6,
-                     "Chocolate": 0.0,
-                     "Choco lux": 0.0,
-                     "Hot water": 0.0,
-                     "Wiener melange": 9.6,
-
-                     # Should not be there
-                     "Coffee with sugar": 8,
-                     "Filter kaffe": 8,
-                     "Filter koffie": 8}
-
-cacao_powder_usage = {"Café au lait": 9.6,
-                      "Café au lait sugar": 9.6,
-                      "Café choco": 9.6,
-                      "Cappuccino": 9.6,
-                      "Cappuccino sugar": 9.6,
-                      "Espresso": 10.8,
-                      "Espresso with milk": 10.8,
-                      "Espresso with sugar": 10.8,
-                      "Espresso milk sugar": 10.8,
-                      "Filter coffee": 9.6,
-                      "Filter coffee milk": 9.6,
-                      "Filter coffee sugar": 9.6,
-                      "Filter coffee milk sugar": 9.6,
-                      "Latte macchiato": 9.6,
-                      "Latte macchiato sugar": 9.6,
-                      "Coffee": 9.6,
-                      "Coffee with milk": 9.6,
-                      "Coffee milk sugar": 9.6,
-                      "Chocolate": 0.0,
-                      "Choco lux": 0.0,
-                      "Hot water": 0.0,
-                      "Wiener melange": 9.6,
-
-                      # Should not be there
-                      "Coffee with sugar": 8,
-                      "Filter kaffe": 8,
-                      "Filter koffie": 8}
-
-sugar_usage = {"Café au lait": 9.6,
-               "Café au lait sugar": 9.6,
-               "Café choco": 9.6,
-               "Cappuccino": 9.6,
-               "Cappuccino sugar": 9.6,
-               "Espresso": 10.8,
-               "Espresso with milk": 10.8,
-               "Espresso with sugar": 10.8,
-               "Espresso milk sugar": 10.8,
-               "Filter coffee": 9.6,
-               "Filter coffee milk": 9.6,
-               "Filter coffee sugar": 9.6,
-               "Filter coffee milk sugar": 9.6,
-               "Latte macchiato": 9.6,
-               "Latte macchiato sugar": 9.6,
-               "Coffee": 9.6,
-               "Coffee with milk": 9.6,
-               "Coffee milk sugar": 9.6,
-               "Chocolate": 0.0,
-               "Choco lux": 0.0,
-               "Hot water": 0.0,
-               "Wiener melange": 9.6,
-
-               # Should not be there
-               "Coffee with sugar": 8,
-               "Filter kaffe": 8,
-               "Filter koffie": 8}
 
 
 # Sets up connection to gmail
@@ -228,7 +113,7 @@ def get_all_mails_by_search(gmail_con, search):
 def setup_database():
     db_conn = sqlite3.connect('jvm-loss.db')
     create_db(db_conn, True, True)
-    insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CACAO)
+    insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CHOCOLATE)
 
     return db_conn
 
@@ -237,6 +122,11 @@ def mark_mails_unread(gmail_con, ids):
     if 0 < len(ids):
         gmail_con.users().messages().batchModify(userId='me', body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
                                                                     'ids': ids}).execute()
+
+
+def batch_delete_mails(gmail_con, ids):
+    if 0 < len(ids):
+        gmail_con.users().messages().batchDelete(userId='me', body={'ids': ids}).execute()
 
 
 def send_message(gmail_con, sender, to, subject, message_text):
@@ -278,7 +168,7 @@ def get_drink(event):
 """
 
 
-def update_ingredient_level(db_conn, timestamp, ingredient, amount):
+def update_ingredient_level(db_conn, timestamp, ingredient, amount: float):
     status = get_last_event_ingredient(db_conn)[0]
 
     if ingredient == "coffee":
@@ -293,10 +183,10 @@ def update_ingredient_level(db_conn, timestamp, ingredient, amount):
         if status[3] < MAX_SUGAR or amount < 0:
             insert_event_ingredient(db_conn, timestamp, status[1], status[2], min(status[3] + amount, MAX_SUGAR),
                                     status[4])
-    elif ingredient == "cacao":
-        if status[4] < MAX_CACAO or amount < 0:
+    elif ingredient == "chocolate":
+        if status[4] < MAX_CHOCOLATE or amount < 0:
             insert_event_ingredient(db_conn, timestamp, status[1], status[2], status[3],
-                                    min(status[4] + amount, MAX_CACAO))
+                                    min(status[4] + amount, MAX_CHOCOLATE))
 
 
 def update_ingredient_level_by_dispense_event(db_conn, timestamp, drink):
@@ -304,7 +194,7 @@ def update_ingredient_level_by_dispense_event(db_conn, timestamp, drink):
 
     insert_event_ingredient(db_conn, timestamp, status[1] - coffee_beans_usage[drink],
                             status[2] - milk_powder_usage[drink], status[3] - sugar_usage[drink],
-                            status[4] - cacao_powder_usage[drink])
+                            status[4] - chocolate_usage[drink])
 
 
 def update_ingredient_levels(db_conn, mails):
@@ -327,7 +217,7 @@ def update_ingredient_levels(db_conn, mails):
             if "Coffee Beans\' is filled." in first_line:
                 update_ingredient_level(db_conn, timestamp, "coffee", MAX_COFFEE)
             if "Chocolate\' is filled." in first_line:
-                update_ingredient_level(db_conn, timestamp, "cacao", MAX_CACAO)
+                update_ingredient_level(db_conn, timestamp, "chocolate", MAX_CHOCOLATE)
             if "Sugar\' is filled." in first_line:
                 update_ingredient_level(db_conn, timestamp, "sugar", MAX_SUGAR)
             if "Milk product\' is filled." in first_line:
@@ -380,6 +270,7 @@ def check_ingredient_level(gmail_con):
     # Send all such lines (no duplicates) as an email to the maintainers of JVM
     drinks = []
     low_volumes = []
+
     # FIXME
     for mail in mails:
         lines = mail.split('\n')
@@ -461,7 +352,7 @@ def check_for_mails(gmail_con, db_conn):
 
 
 def check_queries(gmail_con, db_conn):
-    # TODO only send mail if the query was from today
+    # FIXME currently query mail is deleted, a prettier solution would be to check if the mail was received today
     senders, ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 100)
 
     if 0 < len(senders):
@@ -472,20 +363,20 @@ def check_queries(gmail_con, db_conn):
                   "Coffee: %sg (%.1f%%)\n" \
                   "Milk: %sg (%.1f%%)\n" \
                   "Sugar: %sg (%.1f%%)\n" \
-                  "Cacao: %sg (%.1f%%)\n" % (
+                  "Chocolate: %sg (%.1f%%)\n" % (
                       status[1],
-                      (float(status[1]) / float(MAX_COFFEE)) * 100.0,
+                      (status[1] / MAX_COFFEE) * 100.0,
                       status[2],
-                      (float(status[2]) / float(MAX_MILK)) * 100.0,
+                      (status[2] / MAX_MILK) * 100.0,
                       status[3],
-                      (float(status[3]) / float(MAX_SUGAR)) * 100.0,
+                      (status[3] / MAX_SUGAR) * 100.0,
                       status[4],
-                      (float(status[4]) / float(MAX_CACAO)) * 100.0)
+                      (status[4] / MAX_CHOCOLATE) * 100.0)
 
         for sender in senders:
             send_message(gmail_con, JVM_MAIL, sender, 'Ingredient-status', message)
 
-        mark_mails_unread(gmail_con, ids)
+        batch_delete_mails(gmail_con, ids)
 
     return len(ids)
 

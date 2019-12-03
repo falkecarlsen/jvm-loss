@@ -23,10 +23,10 @@ def create_db(conn: sqlite3.Connection, drop=False, create=False):
 
     create_ingredient_level_table_query = (f'CREATE TABLE {INGREDIENT_LEVEL_TABLE_NAME} (\n'
                                            '                            timestamp INTEGER PRIMARY KEY,\n'
-                                           '                            coffee_level INTEGER,\n'
-                                           '                            milk_level INTEGER,\n'
-                                           '                            sugar_level INTEGER,\n'
-                                           '                            cacao_item INTEGER NOT NULL)\n'
+                                           '                            coffee_level FLOAT NOT NULL ,\n'
+                                           '                            milk_level FLOAT NOT NULL ,\n'
+                                           '                            sugar_level FLOAT NOT NULL,\n'
+                                           '                            cacao_item FLOAT NOT NULL)\n'
                                            '    ')
 
     if drop or create:
@@ -116,7 +116,7 @@ def get_last_event_by_type_older_than(conn: sqlite3.Connection, type: str, upper
     return cur.fetchall()
 
 
-def insert_event_ingredient(conn: sqlite3.Connection, time: int, coffee: int, milk: int, sugar: int, cacao: int):
+def insert_event_ingredient(conn: sqlite3.Connection, time: int, coffee: float, milk: float, sugar: float, cacao: float):
     cur = conn.cursor()
     insert_query = f'INSERT INTO {INGREDIENT_LEVEL_TABLE_NAME} ' \
                    f'(timestamp, coffee_level, milk_level, sugar_level, cacao_item) VALUES (?,?,?,?,?)'
