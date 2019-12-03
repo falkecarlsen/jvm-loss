@@ -271,16 +271,15 @@ def check_ingredient_level(gmail_con):
     drinks = []
     low_volumes = []
 
-    # FIXME
     for mail in mails:
         lines = mail.split('\n')
         for line in lines:
             if "is under threshold" not in line:
                 continue
-            elif datetime.datetime.now().isoweekday() is not datetime.datetime.fromtimestamp(
-                    convert_formatted_timestamp(line)).isoweekday():
+                # If more than a day has passed, do not send a mail
+            elif 86400 < time.time() - convert_formatted_timestamp(line):
                 continue
-            elif re.findall("(?<=')[a-zA-Z ]+(?=')", line) in drinks:
+            elif re.findall("(?<=')[a-zA-Z ]+(?=')", line)[0] in drinks:
                 continue
             else:
                 drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=')", line))
