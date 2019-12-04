@@ -327,9 +327,10 @@ def check_for_mails(gmail_con, db_conn):
     mails_read += check_evadts(gmail_con, db_conn)
     print("Done checking for new EVADTS")
 
-    print("Checking for new failures")
-    mails_read += check_failures(gmail_con, db_conn)
-    print("Done checking for new failures")
+    # FIXME can result in error, due to unique timestamp
+    #print("Checking for new failures")
+    #mails_read += check_failures(gmail_con, db_conn)
+    #print("Done checking for new failures")
 
     print("Checking for new ingredient level")
     events_changing_ingredient_level.extend(check_ingredient_level(gmail_con))
