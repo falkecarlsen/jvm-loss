@@ -118,3 +118,32 @@ sugar_usage = {"Café au lait": 0.0,
                # there are therefore old mails with these names instead of "Filter coffee"
                "Filter kaffe": 0.0,
                "Filter koffie": 0.0}
+
+water_usage = {"Café au lait": 156.0,
+               "Café au lait sugar": 156.0,
+               "Café choco": 156.0,
+               "Cappuccino": 156.0,
+               "Cappuccino sugar": 156.0,
+               "Espresso": 108.0,
+               "Espresso with milk": 99.0,
+               "Espresso with sugar": 108.0,
+               "Espresso milk sugar": 108.0,
+               "Filter coffee": 156.0,
+               "Filter coffee milk": 156.0,
+               "Filter coffee sugar": 156.0,
+               "Filter coffee milk sugar": 156.0,
+               "Latte macchiato": 146.0,
+               "Latte macchiato sugar": 156.0,
+               "Coffee": 156.0,
+               "Coffee with milk": 156.0,
+               "Coffee with sugar": 156.0,
+               "Coffee milk sugar": 156.0,
+               "Chocolate": 144.0,
+               "Choco lux": 144.0,
+               "Hot water": 156.0,
+               "Wiener melange": 156.0,
+
+               # Was previously named wrongly in the machine,
+               # there are therefore old mails with these names instead of "Filter coffee"
+               "Filter kaffe": 156.0,
+               "Filter koffie": 156.0}
