@@ -271,27 +271,23 @@ def check_ingredient_level(gmail_con):
     # Find all lines in the mails which are "under threshold" and from today
     # Send all such lines (no duplicates) as an email to the maintainers of JVM
     drinks = []
-    low_volumes = []
 
     for mail in mails:
-        lines = mail.split('\n')
-        for line in lines:
-            if "is under threshold" not in line:
-                continue
-                # If more than a day has passed, do not send a mail
-            elif 86400 < time.time() - convert_formatted_timestamp(line):
-                continue
-            elif re.findall("(?<=')[a-zA-Z ]+(?=')", line)[0] in drinks:
-                continue
-            else:
-                drinks.append(re.findall("(?<=')[a-zA-Z ]+(?=')", line))
-                low_volumes.append(line)
+        line = mail.split('\n')[1]
+
+        if "is under threshold" in line and \
+                time.time() - convert_formatted_timestamp(line) < 86400 and \
+                re.findall("(?<= ')[ a-zA-Z]+(?=' )", line)[0] not in drinks:
+            drinks.append(re.findall("(?<= ')[ a-zA-Z]+(?=' )", line)[0])
 
     # Send a mail with low volumes
-    if 0 < len(low_volumes):
+    message = "Ingredients are under threshold: \n" \
+              "%s " % (str(drinks).strip('[]'))
+
+    if 0 < len(drinks):
         print("Ingredient level under threshold, sending mail")
         send_message(gmail_con, JVM_MAIL, MAINTAINER_MAILS,
-                     'Low volume', str(low_volumes).strip('[]'))
+                     'Low volume', message)
 
     # todo
     # _thread.start_new_thread(wait_and_check_volume, (drinks, gmail_con))
@@ -328,9 +324,9 @@ def check_for_mails(gmail_con, db_conn):
     print("Done checking for new EVADTS")
 
     # FIXME can result in error, due to unique timestamp
-    #print("Checking for new failures")
-    #mails_read += check_failures(gmail_con, db_conn)
-    #print("Done checking for new failures")
+    # print("Checking for new failures")
+    # mails_read += check_failures(gmail_con, db_conn)
+    # print("Done checking for new failures")
 
     print("Checking for new ingredient level")
     events_changing_ingredient_level.extend(check_ingredient_level(gmail_con))
