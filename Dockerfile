@@ -6,4 +6,4 @@ RUN pip install -r /tmp/requirements.txt
 WORKDIR /opt/jvm-loss
 COPY . /opt/jvm-loss/
 
-CMD ["python", "/opt/jvm-loss/mailclient.py"]
+ENTRYPOINT ["python", "/opt/jvm-loss/mailclient.py"]
