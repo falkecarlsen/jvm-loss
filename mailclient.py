@@ -403,7 +403,7 @@ def main():
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
         # During working hours, check every 5 minutes, else wait an hour and check again
-        if (7 <= current_hour <= 17) and (1 <= current_day <= 5):
+        if 1 < len(sys.argv) and sys.argv[1] == 'test' or ((7 <= current_hour <= 17) and (1 <= current_day <= 5)):
 
             print("Checking for new mails from JVM")
             mails_read = check_for_mails(gmail_con, db_conn)
