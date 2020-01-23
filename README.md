@@ -8,4 +8,4 @@ The JVM(Java Vending Machine) at Strandvejen may experience some loss(making cof
 
 Alternatively, build a Docker image and run it with the following commands. Note that you have to embed the authentication into the Docker `credentials.json` and `token.pickle`.
 1. `docker build --tag=jvm-loss .`
-1. `docker run --rm -it jvm-loss` The `--rm` flag removes the container upon stopping it.
+1. `docker run --name jvm-loss -it jvm-loss` Optionally specify the `--rm` flag, which removes the container upon stopping it.
