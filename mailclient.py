@@ -28,8 +28,18 @@ DB_FILE_NAME = "jvm-loss.db"
 # todo multithread to see if under threshold has been fixed
 # TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
 
-MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
-BACKUP_MAINTAINER_MAILS = ''
+MAINTAINER_LIST_FILENAME = "maintainer_emails.txt"
+BACKUP_MAINTAINER_LIST_FILENAME = "backup_maintainer_emails.txt"
+
+# Read maintainer and backups from file
+with open(MAINTAINER_LIST_FILENAME) as maintainers_file:
+    MAINTAINER_MAILS = [x.strip() for x in maintainers_file.readlines()]
+
+with open(BACKUP_MAINTAINER_LIST_FILENAME) as backup_maintainers_file:
+    BACKUP_MAINTAINER_MAILS = [x.strip() for x in backup_maintainers_file.readlines()]
+
+print(f"Maintainers: {MAINTAINER_MAILS}")
+print(f"Backup: {MAINTAINER_MAILS}")
 
 if 1 < len(sys.argv) and sys.argv[1] == 'test':
     JVM_MAIL = 'fklubjvmloss@gmail.com'

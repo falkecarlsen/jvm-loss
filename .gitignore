@@ -1,3 +1,7 @@
+# Ignore mailing-lists
+maintainer_emails.txt
+backup_maintainer_emails.txt
+
 # Ignore credentials for Gmail API
 credentials.json
 
