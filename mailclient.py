@@ -113,7 +113,7 @@ def get_all_mails_by_search(gmail_con, search):
 
 
 def setup_database():
-    db_conn = sqlite3.connect('jvm-loss.db')
+    db_conn = sqlite3.connect(DB_FILE_NAME)
     create_db(db_conn, True, True)
     insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CHOCOLATE)
 
@@ -384,7 +384,7 @@ def main():
 
     # Check whether to resume using db or create a new one
     if os.path.exists(DB_FILE_NAME):
-        db_conn = sqlite3.connect('jvm-loss.db')
+        db_conn = sqlite3.connect(DB_FILE_NAME)
         # Get last event for status message
         last_event = get_last_event(db_conn)
         # Check that last event is not empty
