@@ -47,6 +47,59 @@ else:
     JVM_MAIL = 'fklubjvmlosstest@gmail.com'
 
 
+class Session:
+    """
+    Encapsulates behaviour of a running session of JVM-loss.
+    """
+
+    def __init__(self):
+        self.gmail_conn = setup_gmail_connection()
+        self.db_conn = database_setup()
+
+    def check(self):
+        print("Checking for new mails from JVM")
+        mails_read = check_for_mails(self.gmail_conn, self.db_conn)
+        print(f"Done checking for new mails from JVM, mails read: {mails_read}")
+
+        print("Checking for new queries")
+        mails_read = check_queries(self.gmail_conn, self.db_conn)
+        print(f"Done checking for new queries, queries processed: {mails_read}")
+
+
+def database_setup():
+    """
+    Loads a database from disk if exists, otherwise creates a clean one
+    :return: a db_conn to sqlite
+    """
+    # Check whether to resume using db or create a new one
+    if os.path.exists(DB_FILE_NAME):
+        db_conn = sqlite3.connect(DB_FILE_NAME)
+        # Get last event for status message
+        last_event = get_last_event(db_conn)
+        # Check that last event is not empty
+        if len(last_event) > 0:
+            print(f"UTC timestamp of last event in db: "
+                  f"{datetime.datetime.utcfromtimestamp(last_event[0][0]).strftime('%Y-%m-%d %H:%M:%S')}. "
+                  f"Total number of events: {len(get_events(db_conn))}")
+        return db_conn
+    else:
+        print("Database does not exist on disk, creating a new one")
+        return setup_clean_database()
+
+
+def setup_clean_database():
+    """
+    Creates a clean database.
+    FIXME: why is an ingredient event inserted into a clean db? should be elaborated here
+    :return: a db_conn to sqlite
+    """
+    db_conn = sqlite3.connect(DB_FILE_NAME)
+    create_db(db_conn, True, True)
+    insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CHOCOLATE)
+
+    return db_conn
+
+
 # Sets up connection to gmail
 def setup_gmail_connection():
     if 1 < len(sys.argv) and sys.argv[1] == 'test':
@@ -120,14 +173,6 @@ def get_all_mails_by_search(gmail_con, search):
             mark_mails_unread(gmail_con, ids)
         else:
             return all_mails
-
-
-def setup_database():
-    db_conn = sqlite3.connect(DB_FILE_NAME)
-    create_db(db_conn, True, True)
-    insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CHOCOLATE)
-
-    return db_conn
 
 
 def mark_mails_unread(gmail_con, ids):
@@ -390,21 +435,7 @@ def check_queries(gmail_con, db_conn):
 
 
 def main():
-    gmail_con = setup_gmail_connection()
-
-    # Check whether to resume using db or create a new one
-    if os.path.exists(DB_FILE_NAME):
-        db_conn = sqlite3.connect(DB_FILE_NAME)
-        # Get last event for status message
-        last_event = get_last_event(db_conn)
-        # Check that last event is not empty
-        if len(last_event) > 0:
-            print(f"UTC timestamp of last event in db: "
-                  f"{datetime.datetime.utcfromtimestamp(last_event[0][0]).strftime('%Y-%m-%d %H:%M:%S')}. "
-                  f"Total number of events: {len(get_events(db_conn))}")
-    else:
-        print("Database does not exist on disk, creating a new one")
-        db_conn = setup_database()
+    session = Session()
 
     while True:
         current_hour = datetime.datetime.now().hour
@@ -415,13 +446,7 @@ def main():
         # During working hours, check every 5 minutes, else wait an hour and check again
         if 1 < len(sys.argv) and sys.argv[1] == 'test' or ((7 <= current_hour <= 17) and (1 <= current_day <= 5)):
 
-            print("Checking for new mails from JVM")
-            mails_read = check_for_mails(gmail_con, db_conn)
-            print(f"Done checking for new mails from JVM, mails read: {mails_read}")
-
-            print("Checking for new queries")
-            mails_read = check_queries(gmail_con, db_conn)
-            print(f"Done checking for new queries, queries processed: {mails_read}")
+            session.check()
 
             print("Sleeping for 5 minutes\n")
             time.sleep(300)
