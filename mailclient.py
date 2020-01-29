@@ -11,7 +11,7 @@ import re
 import time
 import calendar
 import _thread
-import sys
+import argparse
 
 from dictionaries import coffee_beans_usage, sugar_usage, milk_powder_usage, chocolate_usage, MAX_COFFEE, MAX_MILK, \
     MAX_SUGAR, MAX_CHOCOLATE
@@ -31,20 +31,34 @@ DB_FILE_NAME = "jvm-loss.db"
 MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
 BACKUP_MAINTAINER_MAILS = ''
 
-if 1 < len(sys.argv) and sys.argv[1] == 'test':
+parser = argparse.ArgumentParser(description="jvm-loss, track and monitor usage of networked Wittenburg 9100")
+parser.add_argument('mode', type=str, default="prod", nargs='?', choices={"prod", "test"}, help='set mode')
+# Parse some args
+args = parser.parse_args()
+
+# Set internal mode
+MODE = args.mode
+
+if MODE == "test":
     JVM_MAIL = 'fklubjvmloss@gmail.com'
-else:
+elif MODE == "prod":
     JVM_MAIL = 'fklubjvmlosstest@gmail.com'
+else:
+    exit(1)  # Exit early, as unknown mode
+
+print(f"Running JVM-loss in mode: {MODE}")
 
 
 # Sets up connection to gmail
 def setup_gmail_connection():
-    if 1 < len(sys.argv) and sys.argv[1] == 'test':
+    if MODE == 'test':
         token_pickle = 'token_test.pickle'
         credentials = 'credentials_test.json'
-    else:
+    elif MODE == 'prod':
         token_pickle = 'token.pickle'
         credentials = 'credentials.json'
+    else:
+        exit(1)
 
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
@@ -402,8 +416,8 @@ def main():
 
         print(f"Hour: {current_hour}, day: {calendar.day_name[current_day - 1]}")
 
-        # During working hours, check every 5 minutes, else wait an hour and check again
-        if 1 < len(sys.argv) and sys.argv[1] == 'test' or ((7 <= current_hour <= 17) and (1 <= current_day <= 5)):
+        # During working hours, check every 5 minutes, else wait an hour and check again. Omit check if testing
+        if MODE == "test" or ((7 <= current_hour <= 17) and (1 <= current_day <= 5)):
 
             print("Checking for new mails from JVM")
             mails_read = check_for_mails(gmail_con, db_conn)
