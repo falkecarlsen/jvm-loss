@@ -8,4 +8,4 @@ install:
 
 script: 
   - pytest sqlite.py
-  - pytest mailclient.py
+#  - pytest mailclient.py # uncomment when tests are added to mailclient.py
