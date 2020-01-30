@@ -38,6 +38,7 @@ try:
 except FileNotFoundError:
     print(f"Could not find {MAINTAINER_LIST_FILENAME}, proceeding without maintainers set",
           file=sys.stderr)
+    MAINTAINER_MAILS = []
 
 try:
     with open(BACKUP_MAINTAINER_LIST_FILENAME) as backup_maintainers_file:
@@ -45,9 +46,10 @@ try:
 except FileNotFoundError:
     print(f"Could not find {BACKUP_MAINTAINER_LIST_FILENAME}, proceeding without backup-maintainers set",
           file=sys.stderr)
+    BACKUP_MAINTAINER_MAILS = []
 
 print(f"Maintainers: {MAINTAINER_MAILS}")
-print(f"Backup: {MAINTAINER_MAILS}")
+print(f"Backup: {BACKUP_MAINTAINER_MAILS}")
 
 if 1 < len(sys.argv) and sys.argv[1] == 'test':
     JVM_MAIL = 'fklubjvmloss@gmail.com'
