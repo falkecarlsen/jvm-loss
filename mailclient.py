@@ -48,6 +48,8 @@ except FileNotFoundError:
           file=sys.stderr)
     BACKUP_MAINTAINER_MAILS = []
 
+# FIXME: add check if any mails are set when running production - depends on 'parser' branch
+
 print(f"Maintainers: {MAINTAINER_MAILS}")
 print(f"Backup: {BACKUP_MAINTAINER_MAILS}")
 
