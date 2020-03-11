@@ -206,28 +206,50 @@ def update_ingredient_level(db_conn, timestamp, ingredient, amount: float):
 
 
 def update_ingredient_level_by_dispense_event(db_conn, timestamp, drink):
+    # Gets the most recent ingredient status from DB
     status = get_last_event_ingredient(db_conn)[0]
 
+    # Inserts new ingredient status to DB, using existing status, and extracting amounts according to the drink
+    # dispensed, see dictionaries for usages.
     insert_event_ingredient(db_conn, timestamp, status[1] - coffee_beans_usage[drink],
                             status[2] - milk_powder_usage[drink], status[3] - sugar_usage[drink],
                             status[4] - chocolate_usage[drink])
 
 
+'''Called by the check_for_mails function called every 5 mins. Will update ingredient levels, if any mails that 
+contains information about ingredient level has been received '''
+
+
 def update_ingredient_levels(db_conn, mails):
+    # Get all first lines from the mails, as the first lines is the most recent event, iterating through all mails,
+    # therefore gets all events with no duplicates
     first_lines = [mail.split("\n")[1] for mail in mails]
 
+    # Sort these lines based on the timestamp in the mails, oldest mails first, as it makes sense to go
+    # chronologically through the events and act upon these
     first_lines.sort(key=lambda x: convert_formatted_timestamp(x))
 
+    # Go through each line, and act depending on type of mail. Currently these are with keywords in the line
+    # "DispensedDrinkEvent" - a drink has been dispensed, and a couple of grams of ingredients is subtracted from
+    # latest ingredient status in DB,
+
+    # "Menu parametre" - can technically be all changes in menu, such as changing settings and drinks. Here we only
+    # look for coffee beans added to "beholder", if this change is less than max, which we handle in ingredientlevel
+    # mails, add amount to ingredient status in DB.
+
+    # FIXME should probably also add logic for other ingredients here,
+    #  but it is only very rarely we do not fill these to capacity, which again, is handled in IngredientLevel mails
+
+    # "IngredientLevel - an ingredient is at max capacity, and ingredient status is set to this in DB"
     for first_line in first_lines:
         timestamp = convert_formatted_timestamp(first_line)
         if "DispensedDrinkEvent" in first_line:
             drink = get_drink(first_line)
 
             update_ingredient_level_by_dispense_event(db_conn, timestamp, drink)
-
         elif "Menu parametre" in first_line and re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line):
             amount_filled = int(re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line)[0])
-            if amount_filled != 2400:
+            if amount_filled < 2400:
                 update_ingredient_level(db_conn, timestamp, "coffee", float(amount_filled))
         elif "IngredientLevel" in first_line:
             if "Coffee Beans\' is filled." in first_line:
@@ -240,95 +262,134 @@ def update_ingredient_levels(db_conn, mails):
                 update_ingredient_level(db_conn, timestamp, "milk", MAX_MILK)
 
 
+'''Gets all unread "clean" mails, and adds most recent event to DB (the first line in the mail). Example is the 
+weekly cleaning '''
+
+
 def check_clean_events(gmail_con, db_conn):
-    mails = get_all_mails_by_search(gmail_con, 'label:jvm-clean is:unread')
+    mails = get_all_mails_by_search(gmail_con, search='label:jvm-clean is:unread')
 
     for mail in mails:
+        # Extracts and inputs just the first line into the DB, as the next lines in the mails are previous events
         first_line = mail.split("\n")[1]
         insert_event(db_conn, convert_formatted_timestamp(first_line), "Clean", first_line)
     return len(mails)
 
 
+'''Gets all unread "dispenseddrinkevent" mails, and adds most recent event to DB (the first line in the mail). This 
+is NOT updating ingredient levels, just adding information that a certain drink has been dispensed '''
+
+
 def check_dispensed(gmail_con, db_conn):
-    mails = get_all_mails_by_search(gmail_con, 'label:jvm-dispenseddrinkevent is:unread')
+    mails = get_all_mails_by_search(gmail_con, search='label:jvm-dispenseddrinkevent is:unread')
 
     for mail in mails:
         first_line = mail.split("\n")[1]
 
         # Add the DispensedDrinkEvent to db
         insert_event(db_conn, convert_formatted_timestamp(first_line), "DispensedDrinkEvent", get_drink(first_line))
-
+    # returns the actual mails, as these will be used later to update ingredient level
+    # TODO could do optimisation, and just return the first lines of each mail, as these are later extracted again in the
+    #  update_ingredient_levels function
     return mails
 
 
+# TODO Add logic to extract info from evadts mail to DB
 def check_evadts(gmail_con, db_conn):
     return 0
 
 
-def check_failures(gmail_con, db_conn):
-    mails = get_all_mails_by_search(gmail_con, 'label:jvm-failures is:unread')
+'''Gets all unread "failure" mails, and adds most recent event to DB (the first line in the mail). Example is missing 
+"drypbakke" '''
 
-    # Offset needed because seconds are not present in failure mail,
-    # and a failure can be resolves the same minute that it appears
+
+def check_failures(gmail_con, db_conn):
+    mails = get_all_mails_by_search(gmail_con, search='label:jvm-failures is:unread')
+
+    # FIXME Offset needed because seconds are not present in failure mail,
+    #  and a failure can be resolved the same minute that it appears, therefore the timestamp which is used as primary key
+    #  will not be unique. Should be fixed in the database design.
     offset = 0
     for mail in mails:
+        # Extracts and inputs just the first line into the DB, as the next lines in the mails are previous events
         first_line = mail.split("\n")[1]
         insert_event(db_conn, convert_formatted_timestamp_failure(first_line) + offset, "Failure", first_line)
         offset += 1
     return len(mails)
 
 
+'''Gets all unread "IngredientLevel" mails. Example is ingredient level is under threshold, or ingredient is filled. 
+If an ingredient is under threshold, sends a mail to maintainers, currently adds nothing to DB, probably should. 
+Should extend to also check if the mail to maintainer is acted upon (e.g the maintainer filled the ingredient after 
+it was under threshold) '''
+
+
 def check_ingredient_level(gmail_con):
     # todo add mail to DB
-    mails = get_all_mails_by_search(gmail_con, 'label:jvm-ingredientlevel  is:unread')
+    mails = get_all_mails_by_search(gmail_con, search='label:jvm-ingredientlevel  is:unread')
 
-    # Find all lines in the mails which are "under threshold" and from today
-    # Send all such lines (no duplicates) as an email to the maintainers of JVM
-    drinks = []
+    ingredients_under_threshold = []
 
     for mail in mails:
+        # First line is most recent event
         line = mail.split('\n')[1]
 
+        # If the line contains information about some ingredient under threshold, is from today, and is not an
+        # ingredient that has already been found as under threshold, append to array
         if "is under threshold" in line and \
                 time.time() - convert_formatted_timestamp(line) < 86400 and \
-                re.findall("(?<= ')[ a-zA-Z]+(?=' )", line)[0] not in drinks:
-            drinks.append(re.findall("(?<= ')[ a-zA-Z]+(?=' )", line)[0])
+                re.findall("(?<= ')[ a-zA-Z]+(?=' )", line)[0] not in ingredients_under_threshold:
+            ingredients_under_threshold.append(re.findall("(?<= ')[ a-zA-Z]+(?=' )", line)[0])
 
-    # Send a mail with low volumes
-    message = "Ingredients are under threshold: \n" \
-              "%s " % (str(drinks).strip('[]'))
-
-    if 0 < len(drinks):
+    # If at least one ingredient found to be under threshold, send mail to maintainers
+    if 0 < len(ingredients_under_threshold):
         print("Ingredient level under threshold, sending mail")
+
+        # Add all ingredients found to be under threshold to mail
+        message = "Ingredients are under threshold: \n" \
+                  "%s " % (str(ingredients_under_threshold).strip('[]'))
+
         send_message(gmail_con, JVM_MAIL, MAINTAINER_MAILS,
                      'Low volume', message)
 
-    # todo
-    # _thread.start_new_thread(wait_and_check_volume, (drinks, gmail_con))
+    # todo check if maintainer fixed ingredient under threshold
+    # _thread.start_new_thread(wait_and_check_volume, (ingredients_under_threshold, gmail_con))
 
     return mails
+
+
+'''Gets all unread "menu" mails, and adds most recent event to DB (the first line in the mail). Example is settings 
+changed, or added coffee beans '''
 
 
 def check_menu(gmail_con, db_conn):
-    mails = get_all_mails_by_search(gmail_con, 'label:jvm-menu is:unread')
+    mails = get_all_mails_by_search(gmail_con, search='label:jvm-menu is:unread')
 
+    # Extracts and inputs just the first line into the DB, as the next lines in the mails are previous events
     for mail in mails:
         first_line = mail.split("\n")[1]
         insert_event(db_conn, convert_formatted_timestamp(first_line), "Menu", first_line)
+    # returns the actual mails, as these will be used later to update ingredient level
+    # TODO could do optimisation, and just return the first lines of each mail, as these are later extracted again in the
+    #  update_ingredient_levels function
     return mails
 
 
+# TODO add logic for extracting information for safety mails
 def check_safety():
     return 0
 
 
 '''Has one function for each type of mail that can be sent from the coffee machine. Labels are given in gmail 
 to different types of mails, these functions check for these labels, corresponding to the function name'''
+
+
 def check_for_mails(gmail_con, db_conn):
     # Counts how many mails have been read
     mails_read = 0
 
-    # Collects all mails that changes the ingredient level. Will be sent to update_ingredient_level function to update DB
+    # Collects all mails that changes the ingredient level. Will be sent to update_ingredient_level function to
+    # update DB
     mails_changing_ingredient_level = []
 
     print("Checking for new clean events")
@@ -371,9 +432,12 @@ def check_for_mails(gmail_con, db_conn):
 
     return mails_read
 
+
 '''If any mails has been received with label "queries" (currently as of 11-03-2020 only ingredient level queries 
 pr mail is supported) send back a mail to each email that sent the query, containing the current (as of reading the mail)
  last ingredient level contained in the DB'''
+
+
 def check_queries(gmail_con, db_conn):
     # FIXME currently query mail is deleted, a prettier solution would be to check if the mail was received today, or
     #  perhaps just mark it read. This would however spam everyone who has ever queried the DB, if all mails
@@ -383,22 +447,23 @@ def check_queries(gmail_con, db_conn):
     if 0 < len(received_from_email):
 
         # Gets last ingredient level
-        status = get_last_event_ingredient(db_conn)[0]
+        ingredient_status = get_last_event_ingredient(db_conn)[0]
 
         # Construct a pretty-ish mail to be sent to the email that queried
+        # index 1 is current coffee level, 2 is milk etc. Return the level in grams, and in capacity %
         message = "Status on ingredients: \n" \
                   "Coffee: %.1fg (%.1f%%)\n" \
                   "Milk: %.1fg (%.1f%%)\n" \
                   "Sugar: %.1fg (%.1f%%)\n" \
                   "Chocolate: %.1fg (%.1f%%)\n" % (
-                      status[1],
-                      (status[1] / MAX_COFFEE) * 100.0,
-                      status[2],
-                      (status[2] / MAX_MILK) * 100.0,
-                      status[3],
-                      (status[3] / MAX_SUGAR) * 100.0,
-                      status[4],
-                      (status[4] / MAX_CHOCOLATE) * 100.0)
+                      ingredient_status[1],
+                      (ingredient_status[1] / MAX_COFFEE) * 100.0,
+                      ingredient_status[2],
+                      (ingredient_status[2] / MAX_MILK) * 100.0,
+                      ingredient_status[3],
+                      (ingredient_status[3] / MAX_SUGAR) * 100.0,
+                      ingredient_status[4],
+                      (ingredient_status[4] / MAX_CHOCOLATE) * 100.0)
 
         # Send this email to all emails that queried
         for email in received_from_email:
