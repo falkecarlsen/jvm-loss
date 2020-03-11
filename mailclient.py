@@ -322,15 +322,21 @@ def check_safety():
     return 0
 
 
+'''Has one function for each type of mail that can be sent from the coffee machine. Labels are given in gmail 
+to different types of mails, these functions check for these labels, corresponding to the function name'''
 def check_for_mails(gmail_con, db_conn):
+    # Counts how many mails have been read
     mails_read = 0
+
+    # Collects all mails that changes the ingredient level. Will be sent to update_ingredient_level function to update DB
+    mails_changing_ingredient_level = []
 
     print("Checking for new clean events")
     mails_read += check_clean_events(gmail_con, db_conn)
     print("Done checking for new clean events")
 
     print("Checking for new dispensed")
-    events_changing_ingredient_level = check_dispensed(gmail_con, db_conn)
+    mails_changing_ingredient_level += check_dispensed(gmail_con, db_conn)
     print("Done checking for new dispensed")
 
     print("Checking for new EVADTS")
@@ -343,22 +349,25 @@ def check_for_mails(gmail_con, db_conn):
     # print("Done checking for new failures")
 
     print("Checking for new ingredient level")
-    events_changing_ingredient_level.extend(check_ingredient_level(gmail_con))
+    mails_changing_ingredient_level += (check_ingredient_level(gmail_con))
     print("Done checking for ingredient level")
 
     print("Checking for new menu events")
-    events_changing_ingredient_level.extend(check_menu(gmail_con, db_conn))
-    mails_read += len(events_changing_ingredient_level)
+    mails_changing_ingredient_level += (check_menu(gmail_con, db_conn))
     print("Done checking for new menu events")
 
     print("Checking for new safety mails")
     mails_read += check_safety()
     print("Done checking for new safety mails")
 
+    # Update ingredient level
     print("Updating ingredient levels")
-    if 0 < len(events_changing_ingredient_level):
-        update_ingredient_levels(db_conn, events_changing_ingredient_level)
+    if 0 < len(mails_changing_ingredient_level):
+        update_ingredient_levels(db_conn, mails_changing_ingredient_level)
     print("Done updating ingredient levels")
+
+    # Add number of mails that has changed ingredient level to total number of mails read
+    mails_read += len(mails_changing_ingredient_level)
 
     return mails_read
 
@@ -419,10 +428,12 @@ def main():
         # During working hours, check every 5 minutes, else wait an hour and check again. Omit check if testing
         if MODE == "test" or ((7 <= current_hour <= 17) and (1 <= current_day <= 5)):
 
+            # Checks all types of mails that can be sent from the coffee machine
             print("Checking for new mails from JVM")
             mails_read = check_for_mails(gmail_con, db_conn)
             print(f"Done checking for new mails from JVM, mails read: {mails_read}")
 
+            # Checks queries from users to get ingredient levels. Currently only type of query supported.
             print("Checking for new queries")
             mails_read = check_queries(gmail_con, db_conn)
             print(f"Done checking for new queries, queries processed: {mails_read}")
