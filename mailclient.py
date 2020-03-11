@@ -82,7 +82,11 @@ def setup_gmail_connection():
     return build('gmail', 'v1', credentials=creds)
 
 
-# Returns body of mails (only the text part) and the id of mails
+'''Returns body of mails (only the text part) and the id of mails'''
+
+
+# Fixme very ugly, there are better solutions we can use, I plan to use
+#  https://github.com/abhishekchhibber/Gmail-Api-through-Python/blob/master/gmail_read.py
 def get_mails_body(gmail_con, search, max_results):
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=max_results).execute()
 
@@ -98,7 +102,11 @@ def get_mails_body(gmail_con, search, max_results):
         return [], []
 
 
-def get_mails_sender(gmail_con, search, max_results):
+'''Connects to gmail, and uses a search term, such as is:unread or label:jvm-dispenseddrinkevent, finds a max number of results
+This function returns the email of the sender, as well as the id of the mails. Used to send back replies to queries'''
+
+
+def get_mails_sender_email(gmail_con, search, max_results):
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=max_results).execute()
 
     if 0 < inbox["resultSizeEstimate"]:
@@ -114,6 +122,13 @@ def get_mails_sender(gmail_con, search, max_results):
         return [], []
 
 
+'''Connects to gmail, and uses a search term, such as is:unread or label:jvm-dispenseddrinkevent and keeps looping 
+until no more mails is found. The loop is necessary, as a max of 100 max can be returned using the API, 
+and there might be more. This could potentially take a long time, if all mails are marked unread (many minutes, 
+up-to an hour depending on number of mails) Marks the mails returned as read.
+Returns just the mails'''
+
+
 def get_all_mails_by_search(gmail_con, search):
     all_mails = []
 
@@ -121,7 +136,7 @@ def get_all_mails_by_search(gmail_con, search):
         mails, ids = get_mails_body(gmail_con, search, 100)
         if 0 < len(mails):
             all_mails.extend(mail for mail in mails)
-            mark_mails_unread(gmail_con, ids)
+            mark_mails_read(gmail_con, ids)
         else:
             return all_mails
 
@@ -134,15 +149,24 @@ def setup_database():
     return db_conn
 
 
-def mark_mails_unread(gmail_con, ids):
+'''Marks all mails in gmail as read, given their IDs'''
+
+
+def mark_mails_read(gmail_con, ids):
     if 0 < len(ids):
         gmail_con.users().messages().batchModify(userId='me', body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
                                                                     'ids': ids}).execute()
 
 
+'''Deletes all mails from gmail, given their IDs'''
+
+
 def batch_delete_mails(gmail_con, ids):
     if 0 < len(ids):
         gmail_con.users().messages().batchDelete(userId='me', body={'ids': ids}).execute()
+
+
+'''Constructs a mail given the parameters, and sends it'''
 
 
 def send_message(gmail_con, sender, to, subject, message_text):
@@ -155,7 +179,9 @@ def send_message(gmail_con, sender, to, subject, message_text):
     gmail_con.users().messages().send(userId='me', body=message).execute()
 
 
-# Converts the timestamp in mail for dispenseEvent to unix timestamp
+'''Converts the timestamp in mail for dispenseEvent to unix timestamp'''
+
+
 def convert_formatted_timestamp(time):
     # Get all numbers from the snippet
     array = list(map(int, re.findall(r'[0-9]+', time)))
@@ -163,6 +189,11 @@ def convert_formatted_timestamp(time):
     # Convert to unix timestamp in correct order. Might be a better solution.
     # (mail is in DD/MM/YY, function is in (YY/MM/DD, therefore the weird indexes)
     return int(datetime.datetime(array[2], array[1], array[0], array[3], array[4], array[5], array[6]).timestamp())
+
+
+'''Specific convert_formatted_timestamp function for mails with "failure" label. These mails for some reason idiotic 
+reason has a different format than all other mails. Is MM/DD/YY HH:MM, and not 2020, but just 20 for year, 
+and not seconds or ms as ALL THE OTHER MAILS HAVE, totally BS'''
 
 
 def convert_formatted_timestamp_failure(time):
@@ -173,9 +204,11 @@ def convert_formatted_timestamp_failure(time):
     return int(datetime.datetime(array[2] + 2000, array[1], array[0], array[3], array[4]).timestamp())
 
 
-# Return the name of the first drink
-def get_drink(event):
-    return re.findall("(?<=\")[a-zA-Z é]*(?=\" \")", event)[0]
+'''Return the name of the first drink found in the given line from a mail'''
+
+
+def get_drink(line):
+    return re.findall("(?<=\")[a-zA-Z é]*(?=\" \")", line)[0]
 
 
 """ def wait_and_check_volume(drink, gmail_con):
@@ -183,26 +216,27 @@ def get_drink(event):
     time.sleep(7200)
 """
 
+'''Updates the ingredient level in DB by some amount. New ingredient level is ceiled by the max capacity. 
+Other ingredients are not updated'''
+
 
 def update_ingredient_level(db_conn, timestamp, ingredient, amount: float):
+    # Gets last ingredient status from DB, contains information about all 4 ingredients
     status = get_last_event_ingredient(db_conn)[0]
 
     if ingredient == "coffee":
-        if status[1] < MAX_COFFEE or amount < 0:
-            insert_event_ingredient(db_conn, timestamp, min(status[1] + amount, MAX_COFFEE), status[2], status[3],
-                                    status[4])
+        insert_event_ingredient(db_conn, timestamp, min(status[1] + amount, MAX_COFFEE), status[2], status[3],
+                                status[4])
     elif ingredient == "milk":
-        if status[2] < MAX_MILK or amount < 0:
-            insert_event_ingredient(db_conn, timestamp, status[2], min(status[2] + amount, MAX_MILK), status[3],
-                                    status[4])
+        insert_event_ingredient(db_conn, timestamp, status[2], min(status[2] + amount, MAX_MILK), status[3], status[4])
     elif ingredient == "sugar":
-        if status[3] < MAX_SUGAR or amount < 0:
-            insert_event_ingredient(db_conn, timestamp, status[1], status[2], min(status[3] + amount, MAX_SUGAR),
-                                    status[4])
+        insert_event_ingredient(db_conn, timestamp, status[1], status[2], min(status[3] + amount, MAX_SUGAR), status[4])
     elif ingredient == "chocolate":
-        if status[4] < MAX_CHOCOLATE or amount < 0:
-            insert_event_ingredient(db_conn, timestamp, status[1], status[2], status[3],
-                                    min(status[4] + amount, MAX_CHOCOLATE))
+        insert_event_ingredient(db_conn, timestamp, status[1], status[2], status[3],
+                                min(status[4] + amount, MAX_CHOCOLATE))
+
+
+'''Updates ingredient status in DB, by a single dispensed drink event'''
 
 
 def update_ingredient_level_by_dispense_event(db_conn, timestamp, drink):
@@ -249,7 +283,7 @@ def update_ingredient_levels(db_conn, mails):
             update_ingredient_level_by_dispense_event(db_conn, timestamp, drink)
         elif "Menu parametre" in first_line and re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line):
             amount_filled = int(re.findall("(?<=beholder).[0-9]*(?=grCoffee Beans)", first_line)[0])
-            if amount_filled < 2400:
+            if 0 < amount_filled < 2400:
                 update_ingredient_level(db_conn, timestamp, "coffee", float(amount_filled))
         elif "IngredientLevel" in first_line:
             if "Coffee Beans\' is filled." in first_line:
@@ -442,7 +476,7 @@ def check_queries(gmail_con, db_conn):
     # FIXME currently query mail is deleted, a prettier solution would be to check if the mail was received today, or
     #  perhaps just mark it read. This would however spam everyone who has ever queried the DB, if all mails
     #  are marked unread (which could happen in the case that we want to hard reset DB and read every mail
-    received_from_email, mail_ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 100)
+    received_from_email, mail_ids = get_mails_sender_email(gmail_con, 'label:queries   is:unread', 100)
 
     if 0 < len(received_from_email):
 
