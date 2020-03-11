@@ -371,15 +371,21 @@ def check_for_mails(gmail_con, db_conn):
 
     return mails_read
 
-
+'''If any mails has been received with label "queries" (currently as of 11-03-2020 only ingredient level queries 
+pr mail is supported) send back a mail to each email that sent the query, containing the current (as of reading the mail)
+ last ingredient level contained in the DB'''
 def check_queries(gmail_con, db_conn):
-    # FIXME currently query mail is deleted, a prettier solution would be to check if the mail was received today
-    senders, ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 100)
+    # FIXME currently query mail is deleted, a prettier solution would be to check if the mail was received today, or
+    #  perhaps just mark it read. This would however spam everyone who has ever queried the DB, if all mails
+    #  are marked unread (which could happen in the case that we want to hard reset DB and read every mail
+    received_from_email, mail_ids = get_mails_sender(gmail_con, 'label:queries   is:unread', 100)
 
-    if 0 < len(senders):
+    if 0 < len(received_from_email):
 
+        # Gets last ingredient level
         status = get_last_event_ingredient(db_conn)[0]
 
+        # Construct a pretty-ish mail to be sent to the email that queried
         message = "Status on ingredients: \n" \
                   "Coffee: %.1fg (%.1f%%)\n" \
                   "Milk: %.1fg (%.1f%%)\n" \
@@ -394,12 +400,14 @@ def check_queries(gmail_con, db_conn):
                       status[4],
                       (status[4] / MAX_CHOCOLATE) * 100.0)
 
-        for sender in senders:
-            send_message(gmail_con, JVM_MAIL, sender, 'Ingredient-status', message)
+        # Send this email to all emails that queried
+        for email in received_from_email:
+            send_message(gmail_con, JVM_MAIL, email, 'Ingredient-status', message)
 
-        batch_delete_mails(gmail_con, ids)
+        # Delete the query mail
+        batch_delete_mails(gmail_con, mail_ids)
 
-    return len(ids)
+    return len(mail_ids)
 
 
 def main():
