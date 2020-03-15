@@ -262,12 +262,6 @@ def get_drink(line):
     return re.findall("(?<=\")[a-zA-Z é]*(?=\" \")", line)[0]
 
 
-""" def wait_and_check_volume(drink, gmail_con):
-    # Wait 2 hours
-    time.sleep(7200)
-"""
-
-
 def update_ingredient_level(db_conn, timestamp, ingredient, amount: float):
     """Updates the ingredient level in DB by some amount. New ingredient level is ceiled by the max capacity.
     Other ingredients are not updated"""
