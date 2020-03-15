@@ -10,7 +10,6 @@ import datetime
 import re
 import time
 import calendar
-import _thread
 import argparse
 import sys
 
@@ -126,8 +125,8 @@ def setup_clean_database():
     return db_conn
 
 
-# Sets up connection to gmail
 def setup_gmail_connection():
+    """Sets up connection to gmail"""
     if MODE == 'test':
         token_pickle = 'token_test.pickle'
         credentials = 'credentials_test.json'
@@ -159,12 +158,10 @@ def setup_gmail_connection():
     return build('gmail', 'v1', credentials=creds)
 
 
-'''Returns body of mails (only the text part) and the id of mails'''
-
-
 # Fixme very ugly, there are better solutions we can use, I plan to use
 #  https://github.com/abhishekchhibber/Gmail-Api-through-Python/blob/master/gmail_read.py
 def get_mails_body(gmail_con, search, max_results):
+    """Returns body of mails (only the text part) and the id of mails"""
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=max_results).execute()
 
     if 0 < inbox["resultSizeEstimate"]:
@@ -179,11 +176,10 @@ def get_mails_body(gmail_con, search, max_results):
         return [], []
 
 
-'''Connects to gmail, and uses a search term, such as is:unread or label:jvm-dispenseddrinkevent, finds a max number of results
-This function returns the email of the sender, as well as the id of the mails. Used to send back replies to queries'''
-
-
 def get_mails_sender_email(gmail_con, search, max_results):
+    """Connects to gmail, and uses a search term, such as is:unread or label:jvm-dispenseddrinkevent, finds a max
+    number of results. This function returns the email of the sender, as well as the id of the mails. Used to send
+    back replies to queries """
     inbox = gmail_con.users().messages().list(userId='me', q=search, maxResults=max_results).execute()
 
     if 0 < inbox["resultSizeEstimate"]:
@@ -199,14 +195,12 @@ def get_mails_sender_email(gmail_con, search, max_results):
         return [], []
 
 
-'''Connects to gmail, and uses a search term, such as is:unread or label:jvm-dispenseddrinkevent and keeps looping 
-until no more mails is found. The loop is necessary, as a max of 100 max can be returned using the API, 
-and there might be more. This could potentially take a long time, if all mails are marked unread (many minutes, 
-up-to an hour depending on number of mails) Marks the mails returned as read.
-Returns just the mails'''
-
-
 def get_all_mails_by_search(gmail_con, search):
+    """Connects to gmail, and uses a search term, such as is:unread or label:jvm-dispenseddrinkevent and keeps looping
+    until no more mails is found. The loop is necessary, as a max of 100 max can be returned using the API,
+    and there might be more. This could potentially take a long time, if all mails are marked unread (many minutes,
+    up-to an hour depending on number of mails) Marks the mails returned as read.
+    Returns just the mails"""
     all_mails = []
 
     while True:
@@ -218,27 +212,21 @@ def get_all_mails_by_search(gmail_con, search):
             return all_mails
 
 
-'''Marks all mails in gmail as read, given their IDs'''
-
-
 def mark_mails_read(gmail_con, ids):
+    """Marks all mails in gmail as read, given their IDs"""
     if 0 < len(ids):
         gmail_con.users().messages().batchModify(userId='me', body={'removeLabelIds': ['UNREAD'], 'addLabelIds': [],
                                                                     'ids': ids}).execute()
 
 
-'''Deletes all mails from gmail, given their IDs'''
-
-
 def batch_delete_mails(gmail_con, ids):
+    """Deletes all mails from gmail, given their IDs"""
     if 0 < len(ids):
         gmail_con.users().messages().batchDelete(userId='me', body={'ids': ids}).execute()
 
 
-'''Constructs a mail given the parameters, and sends it'''
-
-
 def send_message(gmail_con, sender, to, subject, message_text):
+    """Constructs a mail given the parameters, and sends it"""
     message = MIMEText(message_text)
     message['to'] = to
     message['from'] = sender
@@ -248,10 +236,8 @@ def send_message(gmail_con, sender, to, subject, message_text):
     gmail_con.users().messages().send(userId='me', body=message).execute()
 
 
-'''Converts the timestamp in mail for dispenseEvent to unix timestamp'''
-
-
 def convert_formatted_timestamp(time):
+    """Converts the timestamp in mail for dispenseEvent to unix timestamp"""
     # Get all numbers from the snippet
     array = list(map(int, re.findall(r'[0-9]+', time)))
 
@@ -260,12 +246,10 @@ def convert_formatted_timestamp(time):
     return int(datetime.datetime(array[2], array[1], array[0], array[3], array[4], array[5], array[6]).timestamp())
 
 
-'''Specific convert_formatted_timestamp function for mails with "failure" label. These mails for some reason idiotic 
-reason has a different format than all other mails. Is MM/DD/YY HH:MM, and not 2020, but just 20 for year, 
-and not seconds or ms as ALL THE OTHER MAILS HAVE, totally BS'''
-
-
 def convert_formatted_timestamp_failure(time):
+    """Specific convert_formatted_timestamp function for mails with "failure" label. These mails for some reason idiotic
+    reason has a different format than all other mails. Is MM/DD/YY HH:MM, and not 2020, but just 20 for year,
+    and not seconds or ms as ALL THE OTHER MAILS HAVE, totally BS"""
     # Get all numbers from the snippet
     array = list(map(int, re.findall(r'[0-9]+', time)))
     # Convert to unix timestamp in correct order. Might be a better solution.
@@ -273,10 +257,8 @@ def convert_formatted_timestamp_failure(time):
     return int(datetime.datetime(array[2] + 2000, array[1], array[0], array[3], array[4]).timestamp())
 
 
-'''Return the name of the first drink found in the given line from a mail'''
-
-
 def get_drink(line):
+    """Return the name of the first drink found in the given line from a mail"""
     return re.findall("(?<=\")[a-zA-Z é]*(?=\" \")", line)[0]
 
 
@@ -285,11 +267,10 @@ def get_drink(line):
     time.sleep(7200)
 """
 
-'''Updates the ingredient level in DB by some amount. New ingredient level is ceiled by the max capacity. 
-Other ingredients are not updated'''
-
 
 def update_ingredient_level(db_conn, timestamp, ingredient, amount: float):
+    """Updates the ingredient level in DB by some amount. New ingredient level is ceiled by the max capacity.
+    Other ingredients are not updated"""
     # Gets last ingredient status from DB, contains information about all 4 ingredients
     status = get_last_event_ingredient(db_conn)[0]
 
@@ -305,10 +286,8 @@ def update_ingredient_level(db_conn, timestamp, ingredient, amount: float):
                                 min(status[4] + amount, MAX_CHOCOLATE))
 
 
-'''Updates ingredient status in DB, by a single dispensed drink event'''
-
-
 def update_ingredient_level_by_dispense_event(db_conn, timestamp, drink):
+    """Updates ingredient status in DB, by a single dispensed drink event"""
     # Gets the most recent ingredient status from DB
     status = get_last_event_ingredient(db_conn)[0]
 
@@ -319,11 +298,9 @@ def update_ingredient_level_by_dispense_event(db_conn, timestamp, drink):
                             status[4] - chocolate_usage[drink])
 
 
-'''Called by the check_for_mails function called every 5 mins. Will update ingredient levels, if any mails that 
-contains information about ingredient level has been received '''
-
-
 def update_ingredient_levels(db_conn, mails):
+    """Called by the check_for_mails function called every 5 mins. Will update ingredient levels, if any mails that
+    contains information about ingredient level has been received """
     # Get all first lines from the mails, as the first lines is the most recent event, iterating through all mails,
     # therefore gets all events with no duplicates
     first_lines = [mail.split("\n")[1] for mail in mails]
@@ -365,11 +342,9 @@ def update_ingredient_levels(db_conn, mails):
                 update_ingredient_level(db_conn, timestamp, "milk", MAX_MILK)
 
 
-'''Gets all unread "clean" mails, and adds most recent event to DB (the first line in the mail). Example is the 
-weekly cleaning '''
-
-
 def check_clean_events(gmail_con, db_conn):
+    """Gets all unread "clean" mails, and adds most recent event to DB (the first line in the mail). Example is the
+    weekly cleaning """
     mails = get_all_mails_by_search(gmail_con, search='label:jvm-clean is:unread')
 
     for mail in mails:
@@ -379,11 +354,9 @@ def check_clean_events(gmail_con, db_conn):
     return len(mails)
 
 
-'''Gets all unread "dispenseddrinkevent" mails, and adds most recent event to DB (the first line in the mail). This 
-is NOT updating ingredient levels, just adding information that a certain drink has been dispensed '''
-
-
 def check_dispensed(gmail_con, db_conn):
+    """Gets all unread "dispenseddrinkevent" mails, and adds most recent event to DB (the first line in the mail). This
+    is NOT updating ingredient levels, just adding information that a certain drink has been dispensed """
     mails = get_all_mails_by_search(gmail_con, search='label:jvm-dispenseddrinkevent is:unread')
 
     for mail in mails:
@@ -402,11 +375,9 @@ def check_evadts(gmail_con, db_conn):
     return 0
 
 
-'''Gets all unread "failure" mails, and adds most recent event to DB (the first line in the mail). Example is missing 
-"drypbakke" '''
-
-
 def check_failures(gmail_con, db_conn):
+    """Gets all unread "failure" mails, and adds most recent event to DB (the first line in the mail). Example is
+    missing 'drypbakke' """
     mails = get_all_mails_by_search(gmail_con, search='label:jvm-failures is:unread')
 
     # FIXME Offset needed because seconds are not present in failure mail,
@@ -421,13 +392,11 @@ def check_failures(gmail_con, db_conn):
     return len(mails)
 
 
-'''Gets all unread "IngredientLevel" mails. Example is ingredient level is under threshold, or ingredient is filled. 
-If an ingredient is under threshold, sends a mail to maintainers, currently adds nothing to DB, probably should. 
-Should extend to also check if the mail to maintainer is acted upon (e.g the maintainer filled the ingredient after 
-it was under threshold) '''
-
-
 def check_ingredient_level(gmail_con):
+    """Gets all unread "IngredientLevel" mails. Example is ingredient level is under threshold, or ingredient is filled.
+    If an ingredient is under threshold, sends a mail to maintainers, currently adds nothing to DB, probably should.
+    Should extend to also check if the mail to maintainer is acted upon (e.g the maintainer filled the ingredient after
+    it was under threshold) """
     # todo add mail to DB
     mails = get_all_mails_by_search(gmail_con, search='label:jvm-ingredientlevel  is:unread')
 
@@ -461,11 +430,9 @@ def check_ingredient_level(gmail_con):
     return mails
 
 
-'''Gets all unread "menu" mails, and adds most recent event to DB (the first line in the mail). Example is settings 
-changed, or added coffee beans '''
-
-
 def check_menu(gmail_con, db_conn):
+    """Gets all unread "menu" mails, and adds most recent event to DB (the first line in the mail). Example is settings
+    changed, or added coffee beans """
     mails = get_all_mails_by_search(gmail_con, search='label:jvm-menu is:unread')
 
     # Extracts and inputs just the first line into the DB, as the next lines in the mails are previous events
@@ -483,11 +450,9 @@ def check_safety():
     return 0
 
 
-'''Has one function for each type of mail that can be sent from the coffee machine. Labels are given in gmail 
-to different types of mails, these functions check for these labels, corresponding to the function name'''
-
-
 def check_for_mails(gmail_con, db_conn):
+    """Has one function for each type of mail that can be sent from the coffee machine. Labels are given in gmail
+    to different types of mails, these functions check for these labels, corresponding to the function name"""
     # Counts how many mails have been read
     mails_read = 0
 
@@ -536,12 +501,10 @@ def check_for_mails(gmail_con, db_conn):
     return mails_read
 
 
-'''If any mails has been received with label "queries" (currently as of 11-03-2020 only ingredient level queries 
-pr mail is supported) send back a mail to each email that sent the query, containing the current (as of reading the mail)
- last ingredient level contained in the DB'''
-
-
 def check_queries(gmail_con, db_conn):
+    """If any mails has been received with label "queries" (currently as of 11-03-2020 only ingredient level queries
+    pr mail is supported) send back a mail to each email that sent the query, containing the current (as of reading
+    the mail) last ingredient level contained in the DB """
     # FIXME currently query mail is deleted, a prettier solution would be to check if the mail was received today, or
     #  perhaps just mark it read. This would however spam everyone who has ever queried the DB, if all mails
     #  are marked unread (which could happen in the case that we want to hard reset DB and read every mail
