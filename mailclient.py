@@ -12,6 +12,7 @@ import time
 import calendar
 import _thread
 import argparse
+import sys
 
 from dictionaries import coffee_beans_usage, sugar_usage, milk_powder_usage, chocolate_usage, MAX_COFFEE, MAX_MILK, \
     MAX_SUGAR, MAX_CHOCOLATE
@@ -28,8 +29,30 @@ DB_FILE_NAME = "jvm-loss.db"
 # todo multithread to see if under threshold has been fixed
 # TODO make universal get mails function that returns a dict of all useful information, instead of multiple functions
 
-MAINTAINER_MAILS = 'mmsa17@student.aau.dk, fvejlb17@student.aau.dk'
-BACKUP_MAINTAINER_MAILS = ''
+MAINTAINER_LIST_FILENAME = "maintainer_emails.txt"
+BACKUP_MAINTAINER_LIST_FILENAME = "backup_maintainer_emails.txt"
+
+# Read maintainer and backups from file
+try:
+    with open(MAINTAINER_LIST_FILENAME) as maintainers_file:
+        MAINTAINER_MAILS = [x.strip() for x in maintainers_file.readlines()]
+except FileNotFoundError:
+    print(f"Could not find {MAINTAINER_LIST_FILENAME}, proceeding without maintainers set",
+          file=sys.stderr)
+    MAINTAINER_MAILS = []
+
+try:
+    with open(BACKUP_MAINTAINER_LIST_FILENAME) as backup_maintainers_file:
+        BACKUP_MAINTAINER_MAILS = [x.strip() for x in backup_maintainers_file.readlines()]
+except FileNotFoundError:
+    print(f"Could not find {BACKUP_MAINTAINER_LIST_FILENAME}, proceeding without backup-maintainers set",
+          file=sys.stderr)
+    BACKUP_MAINTAINER_MAILS = []
+
+# FIXME: add check if any mails are set when running production - depends on 'parser' branch
+
+print(f"Maintainers: {MAINTAINER_MAILS}")
+print(f"Backup: {BACKUP_MAINTAINER_MAILS}")
 
 parser = argparse.ArgumentParser(description="jvm-loss, track and monitor usage of networked Wittenburg 9100")
 parser.add_argument('mode', type=str, default="prod", nargs='?', choices={"prod", "test"}, help='set mode')
@@ -47,6 +70,59 @@ else:
     exit(1)  # Exit early, as unknown mode
 
 print(f"Running JVM-loss in mode: {MODE}")
+
+
+class Session:
+    """
+    Encapsulates behaviour of a running session of JVM-loss.
+    """
+
+    def __init__(self):
+        self.gmail_conn = setup_gmail_connection()
+        self.db_conn = database_setup()
+
+    def check(self):
+        print("Checking for new mails from JVM")
+        mails_read = check_for_mails(self.gmail_conn, self.db_conn)
+        print(f"Done checking for new mails from JVM, mails read: {mails_read}")
+
+        print("Checking for new queries")
+        mails_read = check_queries(self.gmail_conn, self.db_conn)
+        print(f"Done checking for new queries, queries processed: {mails_read}")
+
+
+def database_setup():
+    """
+    Loads a database from disk if exists, otherwise creates a clean one
+    :return: a db_conn to sqlite
+    """
+    # Check whether to resume using db or create a new one
+    if os.path.exists(DB_FILE_NAME):
+        db_conn = sqlite3.connect(DB_FILE_NAME)
+        # Get last event for status message
+        last_event = get_last_event(db_conn)
+        # Check that last event is not empty
+        if len(last_event) > 0:
+            print(f"UTC timestamp of last event in db: "
+                  f"{datetime.datetime.utcfromtimestamp(last_event[0][0]).strftime('%Y-%m-%d %H:%M:%S')}. "
+                  f"Total number of events: {len(get_events(db_conn))}")
+        return db_conn
+    else:
+        print("Database does not exist on disk, creating a new one")
+        return setup_clean_database()
+
+
+def setup_clean_database():
+    """
+    Creates a clean database.
+    FIXME: why is an ingredient event inserted into a clean db? should be elaborated here
+    :return: a db_conn to sqlite
+    """
+    db_conn = sqlite3.connect(DB_FILE_NAME)
+    create_db(db_conn, True, True)
+    insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CHOCOLATE)
+
+    return db_conn
 
 
 # Sets up connection to gmail
@@ -139,14 +215,6 @@ def get_all_mails_by_search(gmail_con, search):
             mark_mails_read(gmail_con, ids)
         else:
             return all_mails
-
-
-def setup_database():
-    db_conn = sqlite3.connect('jvm-loss.db')
-    create_db(db_conn, True, True)
-    insert_event_ingredient(db_conn, 0, MAX_COFFEE, MAX_MILK, MAX_SUGAR, MAX_CHOCOLATE)
-
-    return db_conn
 
 
 '''Marks all mails in gmail as read, given their IDs'''
@@ -510,21 +578,7 @@ def check_queries(gmail_con, db_conn):
 
 
 def main():
-    gmail_con = setup_gmail_connection()
-
-    # Check whether to resume using db or create a new one
-    if os.path.exists(DB_FILE_NAME):
-        db_conn = sqlite3.connect('jvm-loss.db')
-        # Get last event for status message
-        last_event = get_last_event(db_conn)
-        # Check that last event is not empty
-        if len(last_event) > 0:
-            print(f"UTC timestamp of last event in db: "
-                  f"{datetime.datetime.utcfromtimestamp(last_event[0][0]).strftime('%Y-%m-%d %H:%M:%S')}. "
-                  f"Total number of events: {len(get_events(db_conn))}")
-    else:
-        print("Database does not exist on disk, creating a new one")
-        db_conn = setup_database()
+    session = Session()
 
     while True:
         current_hour = datetime.datetime.now().hour
@@ -534,16 +588,7 @@ def main():
 
         # During working hours, check every 5 minutes, else wait an hour and check again. Omit check if testing
         if MODE == "test" or ((7 <= current_hour <= 17) and (1 <= current_day <= 5)):
-
-            # Checks all types of mails that can be sent from the coffee machine
-            print("Checking for new mails from JVM")
-            mails_read = check_for_mails(gmail_con, db_conn)
-            print(f"Done checking for new mails from JVM, mails read: {mails_read}")
-
-            # Checks queries from users to get ingredient levels. Currently only type of query supported.
-            print("Checking for new queries")
-            mails_read = check_queries(gmail_con, db_conn)
-            print(f"Done checking for new queries, queries processed: {mails_read}")
+            session.check()
 
             print("Sleeping for 5 minutes\n")
             time.sleep(300)
