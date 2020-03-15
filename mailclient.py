@@ -115,7 +115,8 @@ def database_setup():
 def setup_clean_database():
     """
     Creates a clean database.
-    FIXME: why is an ingredient event inserted into a clean db? should be elaborated here
+    Initial state of coffee machine is chosen as full, hence the insert_event_ingredient with MAX amounts of ingredients.
+    An intial event is needed, as handling dispensedDrinkEvents depends on there being a prior event in the DB
     :return: a db_conn to sqlite
     """
     db_conn = sqlite3.connect(DB_FILE_NAME)
