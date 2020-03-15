@@ -49,8 +49,6 @@ except FileNotFoundError:
           file=sys.stderr)
     BACKUP_MAINTAINER_MAILS = []
 
-# FIXME: add check if any mails are set when running production - depends on 'parser' branch
-
 print(f"Maintainers: {MAINTAINER_MAILS}")
 print(f"Backup: {BACKUP_MAINTAINER_MAILS}")
 
@@ -66,6 +64,9 @@ if MODE == "test":
     JVM_MAIL = 'fklubjvmloss@gmail.com'
 elif MODE == "prod":
     JVM_MAIL = 'fklubjvmlosstest@gmail.com'
+    if not MAINTAINER_MAILS and not BACKUP_MAINTAINER_MAILS:
+        print(f"[ERROR] No emails are set for mode: {MODE}. Quitting", file=sys.stderr)
+        exit(1)
 else:
     exit(1)  # Exit early, as unknown mode
 
